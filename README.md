@@ -4,6 +4,12 @@
 
 **ابزار آنلاین و امن برای ساخت زنجیره اتصال پروکسی‌های V2Ray و Xray**
 
+<p>
+  <a href="https://ramin-mahmoodi.github.io/ChainForge/"><img src="https://img.shields.io/badge/Live_Demo-ChainForge-8cffb0?style=for-the-badge&logoColor=black" alt="Live Demo" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License: MIT" /></a>
+  <a href="https://github.com/XTLS/Xray-core"><img src="https://img.shields.io/badge/Core-Xray%20%2F%20V2Ray-8cffb0?style=for-the-badge&labelColor=172127&color=8cffb0" alt="Core" /></a>
+</p>
+
 [مشاهده و استفاده آنلاین از برنامه](https://ramin-mahmoodi.github.io/ChainForge/)
 
 ---
