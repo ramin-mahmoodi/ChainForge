@@ -1,4 +1,4 @@
-<div dir="rtl">
+<div align="center">
 
 # ChainForge
 
@@ -10,13 +10,17 @@
   <a href="https://github.com/XTLS/Xray-core"><img src="https://img.shields.io/badge/Core-Xray%20%2F%20V2Ray-8cffb0?style=for-the-badge&labelColor=172127&color=8cffb0" alt="Core" /></a>
 </p>
 
-[مشاهده و استفاده آنلاین از برنامه](https://ramin-mahmoodi.github.io/ChainForge/)
+**[مشاهده و استفاده آنلاین از برنامه](https://ramin-mahmoodi.github.io/ChainForge/)**
+
+</div>
 
 ---
 
+<div dir="rtl" align="right">
+
 ## معرفی
 
-**ChainForge** یک ابزار تحت وب سبک، سریع و کاملاً سمت کاربر (Client-Side) است که امکان اتصال زنجیره‌ای چندین سرور پروکسی (Proxy Chaining / Multi-Hop Relay) را فراهم کرده و فایل پیکربندی استاندارد `config.json` را برای هسته V2Ray و Xray تولید می‌کند.
+پروژه **ChainForge** یک ابزار تحت وب سبک، سریع و کاملاً سمت کاربر (Client-Side) است که امکان اتصال زنجیره‌ای چندین سرور پروکسی (Proxy Chaining / Multi-Hop Relay) را فراهم کرده و فایل پیکربندی استاندارد `config.json` را برای هسته V2Ray و Xray تولید می‌کند.
 
 در این ساختار، ترافیک ابتدا به سرور مبدأ ارسال شده و پس از عبور از سرورهای میانی، از طریق سرور مقصد به اینترنت متصل می‌شود.
 
@@ -31,11 +35,11 @@
   شناسایی آنی نوع پروتکل و استخراج خودکار پارامترها به محض درج لینک.
 
 - **پشتیبانی از پروتکل‌های ارتباطی:**
-  - **VLESS:** با پشتیبانی کامل از REALITY، Vision (XTLS)، xHTTP (SplitHTTP)، WebSocket و gRPC
-  - **VMess:** رمزگشایی خودکار رشته‌های Base64 و استخراج تنظیمات شبکه
-  - **Trojan:** همراه با لایه‌های امنیتی TLS، REALITY و xHTTP
-  - **SOCKS5 و HTTP:** پشتیبانی از پروکسی‌های محلی و سرورهای رله
-  - **JSON و Base64:** امکان وارد کردن مستقیم بلوک‌های پیکربندی یا رشته‌های کدگذاری شده
+  - **پروتکل VLESS:** با پشتیبانی کامل از REALITY، Vision (XTLS)، xHTTP (SplitHTTP)، WebSocket و gRPC
+  - **پروتکل VMess:** رمزگشایی خودکار رشته‌های Base64 و استخراج تنظیمات شبکه
+  - **پروتکل Trojan:** همراه با لایه‌های امنیتی TLS، REALITY و xHTTP
+  - **پروکسی‌های SOCKS5 و HTTP:** پشتیبانی از پروکسی‌های محلی و سرورهای رله
+  - **ساختارهای JSON و Base64:** امکان وارد کردن مستقیم بلوک‌های پیکربندی یا رشته‌های کدگذاری شده
 
 - **طراحی کاربردی و بهینه:**
   - رابط کاربری ساده، سبک و بدون پیچیدگی
