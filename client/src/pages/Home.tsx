@@ -9,9 +9,8 @@ import { toast } from "sonner";
 
 type Hop = { id: number; value: string };
 const SAMPLE = [
-  "socks5://192.168.88.118:1080#socks-upstream",
-  "vless://0fd7deba-6202-490f-92e6-d4bfbefd8519@185.53.142.70:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=yahoo.com&fp=chrome&pbk=1234567890abcdefghijklmnopqrstuvwxyz123456&sid=12345678&type=tcp#vless-reality-relay",
-  "trojan://my-password@server.domain.com:443?security=tls&sni=server.domain.com&type=xhttp&path=%2Fxhttp-path#trojan-xhttp-final"
+  "vless://a1b2c3d4-5678-90ab-cdef-1234567890ab@upstream.domain.com:443?security=tls&sni=upstream.domain.com&type=ws&path=%2Fws#Server-1-Upstream",
+  "trojan://my-password@final.domain.com:443?security=tls&sni=final.domain.com&type=xhttp&path=%2Fxhttp-path#Server-2-Final"
 ];
 
 function tryBase64(value: string) {
