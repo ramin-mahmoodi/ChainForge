@@ -14,7 +14,7 @@
 
 <br />
 
-<img src="preview.png" alt="ChainForge Preview" width="100%" />
+<img src="assets/preview.png" alt="ChainForge Preview" width="100%" />
 
 </div>
 
