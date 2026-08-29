@@ -12,6 +12,10 @@
 
 **[مشاهده و استفاده آنلاین از برنامه](https://ramin-mahmoodi.github.io/ChainForge/)**
 
+<br />
+
+<img src="preview.png" alt="ChainForge Preview" width="100%" />
+
 </div>
 
 ---
