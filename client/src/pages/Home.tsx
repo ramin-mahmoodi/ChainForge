@@ -1,9 +1,8 @@
-/* ChainForge: Minimal, focused V2Ray chain builder */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowDown, ArrowUp, Check, ClipboardPaste, Copy, Download, Github, Globe,
-  GitBranch, Laptop, LockKeyhole, Moon, Plus, RotateCcw, Sun, Terminal, Trash2,
-  WandSparkles, X
+  GitBranch, Languages, Laptop, LockKeyhole, Moon, Plus, RotateCcw, Sun, Terminal, Trash2,
+  WandSparkles, X, Zap
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
@@ -213,17 +212,149 @@ function buildConfig(hops: Hop[]) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Bilingual Dictionary                                              */
+/* ------------------------------------------------------------------ */
+type Lang = "fa" | "en";
+
+const translations = {
+  fa: {
+    switchThemeLight: "تغییر به تم روشن",
+    switchThemeDark: "تغییر به تم تاریک",
+    githubTitle: "مشاهده سورس در گیت‌هاب",
+    switchLang: "Switch to English",
+    langLabel: "EN",
+
+    route: "مسیر اتصال",
+    readyCount: (filled: number, total: number) => `${filled} از ${total} سرور آماده`,
+    loadSample: "داده نمونه",
+    reset: "پاک‌سازی",
+    yourDevice: "دستگاه شما",
+    localProxy: "پروکسی محلی روی 127.0.0.1:10808 (SOCKS) و :10809 (HTTP)",
+    insertEntry: "افزودن به عنوان سرور اول",
+    insertHop: "افزودن سرور در این مرحله",
+    addAnotherHop: "افزودن سرور بعدی",
+    internet: "اینترنت آزاد",
+    internetDesc: "ترافیک از طریق آخرین سرور خارج می‌شود",
+
+    roleEntry: "سرور مبدأ (ورودی)",
+    roleExit: "سرور مقصد (خروجی)",
+    roleRelay: (n: number) => `سرور میانی (${n})`,
+    roleHintEntry: "اولین سروری که ترافیک شما به آن متصل می‌شود",
+    roleHintExit: "آخرین سرور، متصل‌کننده به اینترنت آزاد",
+    roleHintRelay: "هدایت‌کننده ترافیک بین سرورهای قبل و بعد",
+
+    paste: "جای‌گذاری",
+    clear: "پاک‌کردن",
+    moveUp: "انتقال به بالا",
+    moveDown: "انتقال به پایین",
+    removeHop: "حذف این سرور",
+    inputPlaceholder: "لینک کانفیگ (vless://, vmess://, trojan://, socks5://) یا JSON را وارد کنید...",
+    fieldEmpty: "این فیلد خالی است",
+
+    config: "کانفیگ خروجی",
+    statusEmpty: "تولید نشده",
+    statusReady: "آماده استفاده",
+    statusStale: "نیازمند به‌روزرسانی",
+    generate: "تولید کانفیگ زنجیره‌ای",
+    staleNote: "سرورها تغییر کرده‌اند. برای دریافت تنظیمات جدید، مجدداً دکمه تولید را بزنید.",
+    codeEmptyTitle: "کانفیگ شما اینجا نمایش داده می‌شود.",
+    codeEmptyDesc: "حداقل دو سرور وارد کرده و دکمه تولید کانفیگ را بزنید.",
+    copy: "کپی کد",
+    copied: "کپی شد",
+    downloadJson: "دانلود JSON",
+    panelNote: (lines: number, kb: string) => `${lines} خط · ${kb} کیلوبایت. قابل استفاده در v2rayN، v2rayNG، Nekoray، MahsaNG یا Streisand.`,
+    panelNoteEmpty: "قابل استفاده در v2rayN، v2rayNG، Nekoray، MahsaNG یا Streisand.",
+
+    privacy: "اجرای ۱۰۰٪ درون مرورگر. بدون ارسال داده به هیچ سرور خارجی.",
+    license: "تحت مجوز MIT",
+
+    pastedInto: (n: number) => `کانفیگ در سرور ${n} جای‌گذاری شد`,
+    clipboardBlocked: "دسترسی به کلیپ‌بورد مسدود است. لطفاً از Ctrl+V استفاده کنید",
+    atLeastTwo: "برای ساخت زنجیره حداقل به دو سرور نیاز است",
+    sampleLoaded: "سرورهای نمونه بارگذاری شدند",
+    formCleared: "فرم پاک‌سازی شد",
+    configGenerated: "کانفیگ زنجیره‌ای ساخته شد",
+    configCopied: "کانفیگ در کلیپ‌بورد کپی شد",
+    copyFailed: "کپی ناموفق بود. لطفاً متن را دستی کپی کنید",
+    fileSaved: "فایل کانفیگ ذخیره شد",
+  },
+  en: {
+    switchThemeLight: "Switch to light theme",
+    switchThemeDark: "Switch to dark theme",
+    githubTitle: "View source on GitHub",
+    switchLang: "تغییر به زبان فارسی",
+    langLabel: "FA",
+
+    route: "Route",
+    readyCount: (filled: number, total: number) => `${filled}/${total} ready`,
+    loadSample: "Load sample",
+    reset: "Reset",
+    yourDevice: "Your device",
+    localProxy: "Local proxy on 127.0.0.1:10808 (SOCKS) and :10809 (HTTP)",
+    insertEntry: "Insert as new entry",
+    insertHop: "Insert hop here",
+    addAnotherHop: "Add another hop",
+    internet: "Internet",
+    internetDesc: "Traffic exits through the last server",
+
+    roleEntry: "Entry",
+    roleExit: "Exit",
+    roleRelay: (n: number) => `Relay (${n})`,
+    roleHintEntry: "First server your traffic reaches",
+    roleHintExit: "Last hop, connects to the internet",
+    roleHintRelay: "Passes traffic between its neighbours",
+
+    paste: "Paste from clipboard",
+    clear: "Clear",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    removeHop: "Remove hop",
+    inputPlaceholder: "Paste a vless://, vmess://, trojan://, socks5:// link or a JSON outbound",
+    fieldEmpty: "This field is empty",
+
+    config: "Config",
+    statusEmpty: "Not generated",
+    statusReady: "Up to date",
+    statusStale: "Outdated",
+    generate: "Generate chain config",
+    staleNote: "Servers changed since this was generated. Generate again to update it.",
+    codeEmptyTitle: "Your config appears here.",
+    codeEmptyDesc: "Add at least two servers, then press Generate.",
+    copy: "Copy",
+    copied: "Copied",
+    downloadJson: "Download JSON",
+    panelNote: (lines: number, kb: string) => `${lines} lines · ${kb} KB. Load the file in v2rayN, v2rayNG, Nekoray, MahsaNG or Streisand.`,
+    panelNoteEmpty: "Load the file in v2rayN, v2rayNG, Nekoray, MahsaNG or Streisand.",
+
+    privacy: "Runs 100% in your browser. No servers, no uploads.",
+    license: "MIT licensed",
+
+    pastedInto: (n: number) => `Pasted into hop ${n}`,
+    clipboardBlocked: "Clipboard access is blocked. Paste with Ctrl+V instead",
+    atLeastTwo: "A chain needs at least two servers",
+    sampleLoaded: "Sample servers loaded",
+    formCleared: "Form cleared",
+    configGenerated: "Chain config generated",
+    configCopied: "Config copied",
+    copyFailed: "Copy failed. Select the text and copy it manually",
+    fileSaved: "File saved",
+  }
+};
+
+type TranslationDict = typeof translations["fa"];
+
+/* ------------------------------------------------------------------ */
 /* UI helpers                                                          */
 /* ------------------------------------------------------------------ */
-const roleOf = (index: number, total: number) =>
-  index === 0 ? "Entry" : index === total - 1 ? "Exit" : "Relay";
+const roleOf = (index: number, total: number, t: TranslationDict) =>
+  index === 0 ? t.roleEntry : index === total - 1 ? t.roleExit : t.roleRelay(index + 1);
 
-const roleHint = (index: number, total: number) =>
+const roleHint = (index: number, total: number, t: TranslationDict) =>
   index === 0
-    ? "First server your traffic reaches"
+    ? t.roleHintEntry
     : index === total - 1
-      ? "Last hop, connects to the internet"
-      : "Passes traffic between its neighbours";
+      ? t.roleHintExit
+      : t.roleHintRelay;
 
 function summarize(raw: string) {
   if (!raw.trim()) return null;
@@ -263,12 +394,20 @@ const focusHop = (id: number) => {
 };
 
 export default function Home() {
+  const [lang, setLang] = useState<Lang>(() => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("chainforge-lang"); } catch {}
+    if (saved === "fa" || saved === "en") return saved;
+    return (navigator.language && navigator.language.startsWith("fa")) ? "fa" : "fa";
+  });
+
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     let saved: string | null = null;
     try { saved = localStorage.getItem("chainforge-theme"); } catch { /* storage unavailable */ }
     if (saved === "light" || saved === "dark") return saved;
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
+
   const [hops, setHops] = useState<Hop[]>([{ id: 1, value: "" }, { id: 2, value: "" }]);
   const [output, setOutput] = useState<any>(null);
   const [generatedKey, setGeneratedKey] = useState("");
@@ -277,15 +416,13 @@ export default function Home() {
   const nextId = useRef(3);
   const panelRef = useRef<HTMLElement>(null);
 
-  const json = useMemo(() => (output ? JSON.stringify(output, null, 2) : ""), [output]);
-  const html = useMemo(() => (json ? highlight(json) : ""), [json]);
-  const hopsKey = useMemo(() => hops.map((h) => h.value.trim()).join("\n§\n"), [hops]);
-  const isStale = !!output && generatedKey !== hopsKey;
-  const status: "empty" | "ready" | "stale" = !output ? "empty" : isStale ? "stale" : "ready";
-  const jsonMeta = useMemo(() => {
-    if (!json) return null;
-    return { lines: json.split("\n").length, kb: (new Blob([json]).size / 1024).toFixed(1) };
-  }, [json]);
+  const t = translations[lang];
+
+  useEffect(() => {
+    document.documentElement.setAttribute("lang", lang);
+    document.documentElement.setAttribute("dir", lang === "fa" ? "rtl" : "ltr");
+    try { localStorage.setItem("chainforge-lang", lang); } catch {}
+  }, [lang]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -296,7 +433,18 @@ export default function Home() {
     try { localStorage.setItem("chainforge-theme", theme); } catch { /* ignore */ }
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  const toggleLang = () => setLang((prev) => (prev === "fa" ? "en" : "fa"));
+
+  const json = useMemo(() => (output ? JSON.stringify(output, null, 2) : ""), [output]);
+  const html = useMemo(() => (json ? highlight(json) : ""), [json]);
+  const hopsKey = useMemo(() => hops.map((h) => h.value.trim()).join("\n§\n"), [hops]);
+  const isStale = !!output && generatedKey !== hopsKey;
+  const status: "empty" | "ready" | "stale" = !output ? "empty" : isStale ? "stale" : "ready";
+  const jsonMeta = useMemo(() => {
+    if (!json) return null;
+    return { lines: json.split("\n").length, kb: (new Blob([json]).size / 1024).toFixed(1) };
+  }, [json]);
 
   const dropError = (id: number) =>
     setErrors((e) => {
@@ -323,7 +471,7 @@ export default function Home() {
   };
 
   const removeHop = (id: number) => {
-    if (hops.length <= 2) return toast.error("A chain needs at least two servers");
+    if (hops.length <= 2) return toast.error(t.atLeastTwo);
     setHops((items) => items.filter((item) => item.id !== id));
     dropError(id);
   };
@@ -342,7 +490,7 @@ export default function Home() {
     const nextErrors: Record<number, string> = {};
     hops.forEach((hop) => {
       if (!hop.value.trim()) {
-        nextErrors[hop.id] = "This field is empty";
+        nextErrors[hop.id] = t.fieldEmpty;
         return;
       }
       try {
@@ -355,7 +503,7 @@ export default function Home() {
 
     const firstBad = hops.findIndex((h) => nextErrors[h.id]);
     if (firstBad !== -1) {
-      toast.error(`Hop ${firstBad + 1}: ${nextErrors[hops[firstBad].id]}`);
+      toast.error(`${lang === "fa" ? `سرور ${firstBad + 1}` : `Hop ${firstBad + 1}`}: ${nextErrors[hops[firstBad].id]}`);
       focusHop(hops[firstBad].id);
       return;
     }
@@ -363,7 +511,7 @@ export default function Home() {
     try {
       setOutput(buildConfig(hops));
       setGeneratedKey(hopsKey);
-      toast.success("Chain config generated");
+      toast.success(t.configGenerated);
       window.setTimeout(() => {
         const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
         panelRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
@@ -382,7 +530,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hops]);
+  }, [hops, lang]);
 
   const flash = (kind: "copy" | "download") => {
     setFeedback(kind);
@@ -394,9 +542,9 @@ export default function Home() {
     try {
       await navigator.clipboard.writeText(json);
       flash("copy");
-      toast.success("Config copied");
+      toast.success(t.configCopied);
     } catch {
-      toast.error("Copy failed. Select the text and copy it manually");
+      toast.error(t.copyFailed);
     }
   };
 
@@ -409,7 +557,7 @@ export default function Home() {
     a.click();
     URL.revokeObjectURL(url);
     flash("download");
-    toast.success("File saved");
+    toast.success(t.fileSaved);
   };
 
   const loadSample = () => {
@@ -418,7 +566,7 @@ export default function Home() {
     setOutput(null);
     setGeneratedKey("");
     setErrors({});
-    toast.info("Sample servers loaded");
+    toast.info(t.sampleLoaded);
   };
 
   const reset = () => {
@@ -428,7 +576,7 @@ export default function Home() {
     setGeneratedKey("");
     setErrors({});
     setFeedback(null);
-    toast.success("Form cleared");
+    toast.success(t.formCleared);
   };
 
   const filledCount = hops.filter((h) => h.value.trim()).length;
@@ -436,7 +584,7 @@ export default function Home() {
 
   return (
     <div className="app">
-      <Toaster position="top-center" richColors theme={theme} />
+      <Toaster position="top-center" richColors theme={theme} dir={lang === "fa" ? "rtl" : "ltr"} />
 
       <header className="topbar">
         <a className="logo" href="./" aria-label="ChainForge home">
@@ -444,13 +592,22 @@ export default function Home() {
           <span className="logo-name">ChainForge</span>
         </a>
         <div className="topbar-tools">
-          <span className="tag">V2Ray · Xray</span>
+          <button
+            type="button"
+            className="tool-btn lang-btn"
+            onClick={toggleLang}
+            aria-label={t.switchLang}
+            title={t.switchLang}
+          >
+            <Languages size={17} aria-hidden="true" />
+            <span>{t.langLabel}</span>
+          </button>
           <button
             type="button"
             className="tool-btn"
             onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            title={theme === "dark" ? "Light theme" : "Dark theme"}
+            aria-label={theme === "dark" ? t.switchThemeLight : t.switchThemeDark}
+            title={theme === "dark" ? t.switchThemeLight : t.switchThemeDark}
           >
             {theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
           </button>
@@ -459,8 +616,8 @@ export default function Home() {
             target="_blank"
             rel="noreferrer"
             className="tool-btn"
-            aria-label="View source on GitHub"
-            title="View source on GitHub"
+            aria-label={t.githubTitle}
+            title={t.githubTitle}
           >
             <Github size={17} aria-hidden="true" />
           </a>
@@ -468,28 +625,20 @@ export default function Home() {
       </header>
 
       <main className="shell">
-        <section className="hero">
-          <h1>Build a multi-hop proxy chain in your browser.</h1>
-          <p>
-            Paste your server links in order. ChainForge writes one Xray / V2Ray config that sends traffic
-            through every server in turn. Nothing leaves this page.
-          </p>
-        </section>
-
         <div className="workspace">
           {/* ------------------------------ Route ------------------------------ */}
           <section className="route" aria-labelledby="route-title">
             <div className="route-head">
               <div className="route-title">
-                <h2 id="route-title">Route</h2>
-                <span className="count">{filledCount}/{hops.length} ready</span>
+                <h2 id="route-title">{t.route}</h2>
+                <span className="count">{t.readyCount(filledCount, hops.length)}</span>
               </div>
               <div className="route-tools">
                 <button type="button" className="text-btn" onClick={loadSample}>
-                  <WandSparkles size={15} aria-hidden="true" /> Load sample
+                  <WandSparkles size={15} aria-hidden="true" /> {t.loadSample}
                 </button>
                 <button type="button" className="text-btn danger" onClick={reset}>
-                  <RotateCcw size={15} aria-hidden="true" /> Reset
+                  <RotateCcw size={15} aria-hidden="true" /> {t.reset}
                 </button>
               </div>
             </div>
@@ -498,8 +647,8 @@ export default function Home() {
               <li className="stop">
                 <span className="pin pin-end"><Laptop size={17} aria-hidden="true" /></span>
                 <div className="end-node">
-                  <strong>Your device</strong>
-                  <span>Local proxy on <code>127.0.0.1:10808</code> (SOCKS) and <code>:10809</code> (HTTP)</span>
+                  <strong>{t.yourDevice}</strong>
+                  <span>{t.localProxy}</span>
                 </div>
               </li>
 
@@ -510,11 +659,11 @@ export default function Home() {
                     type="button"
                     className="slot-btn"
                     onClick={() => insertHop(index)}
-                    aria-label={index === 0 ? "Insert a hop before the entry" : `Insert a hop at position ${index + 1}`}
+                    aria-label={index === 0 ? t.insertEntry : t.insertHop}
                   >
                     <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
                   </button>
-                  <span className="slot-label">{index === 0 ? "Insert as new entry" : "Insert hop here"}</span>
+                  <span className="slot-label">{index === 0 ? t.insertEntry : t.insertHop}</span>
                 </li>
                 <li className="stop">
                   <span className={`pin ${errors[hop.id] ? "pin-error" : hop.value.trim() ? "pin-filled" : ""}`}>
@@ -531,6 +680,8 @@ export default function Home() {
                     onDelete={() => removeHop(hop.id)}
                     onMove={(dir: -1 | 1) => moveHop(index, dir)}
                     canDelete={hops.length > 2}
+                    t={t}
+                    lang={lang}
                   />
                 </li>
                 </Fragment>
@@ -538,14 +689,14 @@ export default function Home() {
 
               <li className="stop stop-add">
                 <span className="pin pin-add"><Plus size={16} aria-hidden="true" /></span>
-                <button type="button" className="add-hop" onClick={addHop}>Add another hop</button>
+                <button type="button" className="add-hop" onClick={addHop}>{t.addAnotherHop}</button>
               </li>
 
               <li className="stop">
                 <span className="pin pin-end"><Globe size={17} aria-hidden="true" /></span>
                 <div className="end-node">
-                  <strong>Internet</strong>
-                  <span>Traffic exits through the last server</span>
+                  <strong>{t.internet}</strong>
+                  <span>{t.internetDesc}</span>
                 </div>
               </li>
             </ol>
@@ -554,21 +705,24 @@ export default function Home() {
           {/* ------------------------------ Config ------------------------------ */}
           <aside className="panel" ref={panelRef} aria-labelledby="config-title">
             <div className="panel-head">
-              <h2 id="config-title">Config</h2>
+              <h2 id="config-title">{t.config}</h2>
               <span className={`status status-${status}`}>
-                {status === "empty" ? "Not generated" : status === "ready" ? "Up to date" : "Outdated"}
+                {status === "empty" ? t.statusEmpty : status === "ready" ? t.statusReady : t.statusStale}
               </span>
             </div>
 
             <button type="button" className="generate" onClick={generate}>
-              <span>Generate chain config</span>
+              <span className="generate-text">
+                <Zap size={17} className="generate-icon" aria-hidden="true" />
+                <span>{t.generate}</span>
+              </span>
               <kbd className="kbd" aria-hidden="true">Ctrl ↵</kbd>
             </button>
 
             {isStale && (
               <div className="stale-note" role="status">
                 <AlertCircle size={15} aria-hidden="true" />
-                <span>Servers changed since this was generated. Generate again to update it.</span>
+                <span>{t.staleNote}</span>
               </div>
             )}
 
@@ -578,8 +732,8 @@ export default function Home() {
               ) : (
                 <div className="code-empty">
                   <Terminal size={20} aria-hidden="true" />
-                  <p>Your config appears here.</p>
-                  <span>Add at least two servers, then press Generate.</span>
+                  <p>{t.codeEmptyTitle}</p>
+                  <span>{t.codeEmptyDesc}</span>
                 </div>
               )}
             </div>
@@ -587,17 +741,16 @@ export default function Home() {
             <div className="panel-foot">
               <button type="button" className="out-btn" onClick={copy} disabled={!output}>
                 {feedback === "copy" ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
-                <span>{feedback === "copy" ? "Copied" : "Copy"}</span>
+                <span>{feedback === "copy" ? t.copied : t.copy}</span>
               </button>
               <button type="button" className="out-btn solid" onClick={download} disabled={!output}>
                 {feedback === "download" ? <Check size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
-                <span>Download JSON</span>
+                <span>{t.downloadJson}</span>
               </button>
             </div>
 
             <p className="panel-note">
-              {jsonMeta ? <>{jsonMeta.lines} lines · {jsonMeta.kb} KB. </> : null}
-              Load the file in v2rayN, v2rayNG, Nekoray, MahsaNG or Streisand.
+              {jsonMeta ? t.panelNote(jsonMeta.lines, jsonMeta.kb) : t.panelNoteEmpty}
             </p>
           </aside>
         </div>
@@ -605,9 +758,9 @@ export default function Home() {
 
       <footer className="footer">
         <span className="privacy">
-          <LockKeyhole size={14} aria-hidden="true" /> Runs 100% in your browser. No servers, no uploads.
+          <LockKeyhole size={14} aria-hidden="true" /> {t.privacy}
         </span>
-        <span>MIT licensed</span>
+        <span>{t.license}</span>
       </footer>
     </div>
   );
@@ -624,16 +777,17 @@ interface ProxyCardProps {
   onDelete: () => void;
   onMove: (direction: -1 | 1) => void;
   canDelete: boolean;
+  t: TranslationDict;
+  lang: Lang;
 }
 
-function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete, onMove, canDelete }: ProxyCardProps) {
+function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete, onMove, canDelete, t, lang }: ProxyCardProps) {
   const protocolInfo = useMemo(() => detectProtocol(value), [value]);
   const summary = useMemo(() => summarize(value), [value]);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const role = roleOf(index, total);
+  const role = roleOf(index, total, t);
   const message = error || (summary && !summary.ok ? summary.error : "");
 
-  // Auto-grow the textarea to fit its content
   useLayoutEffect(() => {
     const el = taRef.current;
     if (!el) return;
@@ -646,41 +800,41 @@ function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete
       const text = await navigator.clipboard.readText();
       if (text) {
         onChange(text);
-        toast.success(`Pasted into hop ${index + 1}`);
+        toast.success(t.pastedInto(index + 1));
       }
     } catch {
-      toast.error("Clipboard access is blocked. Paste with Ctrl+V instead");
+      toast.error(t.clipboardBlocked);
     }
   };
 
   return (
-    <article className={`card ${message ? "has-error" : ""}`} aria-label={`Hop ${index + 1}, ${role}`}>
+    <article className={`card ${message ? "has-error" : ""}`} aria-label={`${lang === "fa" ? `سرور ${index + 1}` : `Hop ${index + 1}`}, ${role}`}>
       <div className="card-top">
         <div className="card-heading">
           <label className="card-role" htmlFor={`proxy-${id}`}>{role}</label>
           {protocolInfo.badge && (
             <span className={`protocol-badge protocol-${protocolInfo.type}`}>{protocolInfo.badge}</span>
           )}
-          <span className="card-hint">{roleHint(index, total)}</span>
+          <span className="card-hint">{roleHint(index, total, t)}</span>
         </div>
 
         <div className="card-actions">
-          <button type="button" className="icon-btn" onClick={handlePaste} aria-label="Paste from clipboard" title="Paste from clipboard">
+          <button type="button" className="icon-btn" onClick={handlePaste} aria-label={t.paste} title={t.paste}>
             <ClipboardPaste size={15} aria-hidden="true" />
           </button>
           {value && (
-            <button type="button" className="icon-btn" onClick={onClear} aria-label="Clear this server" title="Clear">
+            <button type="button" className="icon-btn" onClick={onClear} aria-label={t.clear} title={t.clear}>
               <X size={15} aria-hidden="true" />
             </button>
           )}
-          <button type="button" className="icon-btn" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Move up" title="Move up">
+          <button type="button" className="icon-btn" onClick={() => onMove(-1)} disabled={index === 0} aria-label={t.moveUp} title={t.moveUp}>
             <ArrowUp size={15} aria-hidden="true" />
           </button>
-          <button type="button" className="icon-btn" onClick={() => onMove(1)} disabled={index === total - 1} aria-label="Move down" title="Move down">
+          <button type="button" className="icon-btn" onClick={() => onMove(1)} disabled={index === total - 1} aria-label={t.moveDown} title={t.moveDown}>
             <ArrowDown size={15} aria-hidden="true" />
           </button>
           {canDelete && (
-            <button type="button" className="icon-btn delete" onClick={onDelete} aria-label="Remove this hop" title="Remove hop">
+            <button type="button" className="icon-btn delete" onClick={onDelete} aria-label={t.removeHop} title={t.removeHop}>
               <Trash2 size={15} aria-hidden="true" />
             </button>
           )}
@@ -692,7 +846,7 @@ function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete
         id={`proxy-${id}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Paste a vless://, vmess://, trojan://, socks5:// link or a JSON outbound"
+        placeholder={t.inputPlaceholder}
         spellCheck={false}
         autoComplete="off"
         autoCapitalize="off"

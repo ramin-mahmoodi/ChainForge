@@ -10,10 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap"
     />
     <script>
-      // Apply saved/system theme before first paint to avoid a flash
+      // Apply saved theme and lang before first paint to prevent flashes
       try {
         var t = null;
         try { t = localStorage.getItem("chainforge-theme"); } catch (e) {}
@@ -21,6 +21,14 @@
           t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         }
         document.documentElement.setAttribute("data-theme", t);
+
+        var l = null;
+        try { l = localStorage.getItem("chainforge-lang"); } catch (e) {}
+        if (l !== "fa" && l !== "en") {
+          l = (navigator.language && navigator.language.startsWith("fa")) ? "fa" : "fa";
+        }
+        document.documentElement.setAttribute("lang", l);
+        document.documentElement.setAttribute("dir", l === "fa" ? "rtl" : "ltr");
       } catch (e) {}
     </script>
   </head>
