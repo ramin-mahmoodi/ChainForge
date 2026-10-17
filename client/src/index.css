@@ -33,7 +33,7 @@
   --tk-num: #8db4ff;
   --tk-bool: #f59db0;
 
-  --font-title: 'Plus Jakarta Sans', 'Vazirmatn', system-ui, -apple-system, sans-serif;
+  --font-title: 'Archivo', 'Vazirmatn', system-ui, -apple-system, sans-serif;
   --font-body: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font: var(--font-body);
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -163,6 +163,7 @@ h1, h2, h3,
 .logo-name {
   font-size: 19px;
   font-weight: 800;
+  font-stretch: 118%;
   letter-spacing: 0.01em;
 }
 .topbar-tools { display: flex; align-items: center; gap: 8px; }
@@ -219,7 +220,12 @@ h1, h2, h3,
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.count { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+.count {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
 .route-tools { display: flex; align-items: center; gap: 4px; }
 
 .text-btn {
