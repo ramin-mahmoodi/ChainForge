@@ -2,12 +2,12 @@
 
 # ChainForge
 
-**ابزار آنلاین و امن برای ساخت زنجیره اتصال پروکسی‌های V2Ray و Xray**
+**ابزار مدرن، امن و کلاینت‌ساید برای ساخت زنجیره اتصال پروکسی‌های V2Ray و Xray**
 
 <p>
-  <a href="https://ramin-mahmoodi.github.io/ChainForge/"><img src="https://img.shields.io/badge/Live_Demo-ChainForge-8cffb0?style=for-the-badge&logoColor=black" alt="Live Demo" /></a>
+  <a href="https://ramin-mahmoodi.github.io/ChainForge/"><img src="https://img.shields.io/badge/Live_Demo-ChainForge-ffb400?style=for-the-badge&logoColor=black" alt="Live Demo" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License: MIT" /></a>
-  <a href="https://github.com/XTLS/Xray-core"><img src="https://img.shields.io/badge/Core-Xray%20%2F%20V2Ray-8cffb0?style=for-the-badge&labelColor=172127&color=8cffb0" alt="Core" /></a>
+  <a href="https://github.com/XTLS/Xray-core"><img src="https://img.shields.io/badge/Core-Xray%20%2F%20V2Ray-ffb400?style=for-the-badge&labelColor=101828&color=ffb400" alt="Core" /></a>
 </p>
 
 **[مشاهده و استفاده آنلاین از برنامه](https://ramin-mahmoodi.github.io/ChainForge/)**
@@ -24,9 +24,9 @@
 
 ## معرفی
 
-پروژه **ChainForge** یک ابزار تحت وب سبک، سریع و کاملاً سمت کاربر (Client-Side) است که امکان اتصال زنجیره‌ای چندین سرور پروکسی (Proxy Chaining / Multi-Hop Relay) را فراهم کرده و فایل پیکربندی استاندارد `config.json` را برای هسته V2Ray و Xray تولید می‌کند.
+پروژه **ChainForge** یک ابزار تحت وب مدرن، سبک و کاملاً سمت کاربر (Client-Side) است که امکان اتصال زنجیره‌ای چندین سرور پروکسی (Proxy Chaining / Multi-Hop Relay) را در بستری امن و بدون نیاز به سرور واسط فراهم می‌سازد. خروجی این ابزار یک فایل پیکربندی استاندارد `config.json` سازگار با کلیه نرم‌افزارهای هسته V2Ray و Xray است.
 
-در این ساختار، ترافیک ابتدا به سرور مبدأ ارسال شده و پس از عبور از سرورهای میانی، از طریق سرور مقصد به اینترنت متصل می‌شود.
+در ساختار زنجیره‌ای (Chain)، ترافیک شما ابتدا به سرور مبدأ (Entry) ارسال شده و پس از عبور متوالی از سرورهای میانی (Relay)، از طریق سرور مقصد (Exit) به اینترنت آزاد متصل می‌شود. این فرآیند موجب پنهان ماندن سرور خروجی، دور زدن محدودیت‌ها و ارتقای امنیت و حریم خصوصی ارتباط می‌گردد.
 
 ---
 
@@ -34,30 +34,38 @@
 
 <ul dir="rtl">
   <li dir="rtl">
-    <strong>امنیت کامل و پردازش محلی (Client-Side):</strong><br />
-    کلیه محاسبات، رمزگشایی‌ها و تولید فایل پیکربندی منحصراً در مرورگر کاربر انجام شده و هیچ داده‌ای به سرور خارجی ارسال نمی‌گردد.
+    <strong>امنیت کامل و پردازش ۱۰۰٪ سمت کلاینت (Offline-Ready & Privacy-First):</strong><br />
+    تمام پردازش‌ها، رمزگشایی‌های Base64 و تولید فایل پیکربندی به صورت کامل در مرورگر شما انجام می‌شود و هیچ اطلاعات یا لینکی به سرورهای خارجی ارسال نخواهد شد.
   </li>
   <li dir="rtl">
-    <strong>تشخیص خودکار پروتکل:</strong><br />
-    شناسایی آنی نوع پروتکل و استخراج خودکار پارامترها به محض درج لینک.
+    <strong>پشتیبانی دو زبانه (فارسی و انگلیسی):</strong><br />
+    امکان جابجایی بین زبان فارسی (با چیدمان راست‌چین RTL) و انگلیسی (چپ‌چین LTR) با یک کلیک به همراه ذخیره‌سازی خودکار ترجیحات زبان.
   </li>
   <li dir="rtl">
-    <strong>پشتیبانی از پروتکل‌های ارتباطی:</strong>
+    <strong>فونت‌های اختصاصی محلی (Self-Hosted Fonts):</strong><br />
+    به‌کارگیری قلم <strong>وزیر (Vazir)</strong> برای بدنه و متون فارسی و قلم مونو‌اسپیس <strong>وزیر کد (Vazir Code)</strong> برای بخش‌های فنی، وضعیت‌ها و شمارنده‌ها به صورت محلی و خودمیزبان بدون وابستگی به سرورهای بیرونی.
+  </li>
+  <li dir="rtl">
+    <strong>طراحی Route-Rail مدرن و مینیمال:</strong><br />
+    نمایش شفاف و گام‌به‌گام مسیر عبور ترافیک با امکان افزودن سرور، درج در میانه مسیر، جابجایی ترتیبی و پاک‌سازی سریع.
+  </li>
+  <li dir="rtl">
+    <strong>تشخیص خودکار و هوشمند پروتکل‌ها:</strong>
     <ul dir="rtl">
-      <li dir="rtl"><strong>پروتکل VLESS:</strong> با پشتیبانی کامل از REALITY، Vision (XTLS)، xHTTP (SplitHTTP)، WebSocket و gRPC</li>
-      <li dir="rtl"><strong>پروتکل VMess:</strong> رمزگشایی خودکار رشته‌های Base64 و استخراج تنظیمات شبکه</li>
-      <li dir="rtl"><strong>پروتکل Trojan:</strong> همراه با لایه‌های امنیتی TLS، REALITY و xHTTP</li>
-      <li dir="rtl"><strong>پروکسی‌های SOCKS5 و HTTP:</strong> پشتیبانی از پروکسی‌های محلی و سرورهای رله</li>
-      <li dir="rtl"><strong>ساختارهای JSON و Base64:</strong> امکان وارد کردن مستقیم بلوک‌های پیکربندی یا رشته‌های کدگذاری شده</li>
+      <li dir="rtl"><strong>پروتکل VLESS:</strong> با پشتیبانی جامع از REALITY، Vision (XTLS)، xHTTP (SplitHTTP)، WebSocket و gRPC</li>
+      <li dir="rtl"><strong>پروتکل VMess:</strong> استخراج خودکار متادیتا و رمزگشایی کدهای Base64</li>
+      <li dir="rtl"><strong>پروتکل Trojan:</strong> سازگار با لایه‌های امنیتی TLS، REALITY و شبکه‌های مختلف</li>
+      <li dir="rtl"><strong>پروکسی‌های SOCKS5 و HTTP:</strong> مناسب اتصال به پروکسی‌های محلی و سرورهای واسط</li>
+      <li dir="rtl"><strong>پیکربندی خام JSON:</strong> امکان وارد کردن مستقیم بلوک‌های Outbound ساختار JSON</li>
     </ul>
   </li>
   <li dir="rtl">
-    <strong>طراحی کاربردی و بهینه:</strong>
+    <strong>امکانات رفاهی و تجربه کاربری:</strong>
     <ul dir="rtl">
-      <li dir="rtl">رابط کاربری ساده، سبک و بدون پیچیدگی</li>
-      <li dir="rtl">قابلیت تغییر تم به حالت تاریک و روشن</li>
-      <li dir="rtl">کلید میانبر کیبورد (Ctrl + Enter) جهت ساخت سریع</li>
-      <li dir="rtl">امکان کپی مستقیم و دانلود فایل با فرمت JSON</li>
+      <li dir="rtl">پشتیبانی از تم روشن و تاریک (Dark / Light) همراه با ذخیره در حافظه مرورگر</li>
+      <li dir="rtl">کلید میانبر صفحه‌کلید (<kbd>Ctrl + Enter</kbd>) برای تولید سریع کانفیگ</li>
+      <li dir="rtl">کپی مستقیم با یک کلیک و دانلود فایل کانفیگ <code>.json</code></li>
+      <li dir="rtl">بارگذاری داده‌های نمونه تستی جهت تست و راه‌اندازی سریع</li>
     </ul>
   </li>
 </ul>
@@ -67,9 +75,9 @@
 ## راهنمای استفاده
 
 <ol dir="rtl">
-  <li dir="rtl"><strong>ورود اطلاعات سرورها:</strong> لینک سرور مبدأ و سرور مقصد را در بخش‌های مربوطه وارد نمایید (امکان استفاده از دکمه «جای‌گذاری» وجود دارد).</li>
-  <li dir="rtl"><strong>تولید پیکربندی:</strong> بر روی دکمه «تولید کانفیگ زنجیره‌ای» کلیک کنید یا کلیدهای ترکیبی Ctrl + Enter را فشار دهید.</li>
-  <li dir="rtl"><strong>استفاده در کلاینت:</strong> فایل یا متن JSON تولید شده را دریافت کرده و در نرم‌افزارهای سازگار با V2Ray/Xray (نظیر v2rayN، v2rayNG، Nekoray، MahsaNG، Streisand و سایر برنامه‌ها) بارگذاری نمایید.</li>
+  <li dir="rtl"><strong>ورود اطلاعات سرورها:</strong> لینک سرور مبدأ (ورودی) و سرور مقصد (خروجی) را وارد کنید (می‌توانید از دکمه «جای‌گذاری» استفاده نمایید یا سرورهای میانی بیشتری اضافه کنید).</li>
+  <li dir="rtl"><strong>تولید کانفیگ:</strong> بر روی دکمه «تولید کانفیگ زنجیره‌ای» کلیک کنید یا کلیدهای ترکیبی <kbd>Ctrl + Enter</kbd> را فشار دهید.</li>
+  <li dir="rtl"><strong>بارگذاری در نرم‌افزار کلاینت:</strong> فایل JSON تولید شده را دانلود کرده یا متن آن را کپی نمایید و در نرم‌افزارهای سازگار (مانند v2rayN، v2rayNG، Nekoray، MahsaNG، Streisand و غیره) اضافه کنید.</li>
 </ol>
 
 ---
