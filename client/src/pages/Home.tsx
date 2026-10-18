@@ -34,6 +34,7 @@ function buildStreamSettings(networkRaw: string, securityRaw: string, p: Record<
   const sni = p.sni || p.peer || (security !== "none" ? hostFallback : undefined);
   const fp = p.fp || p.fingerprint || (security === "reality" ? "chrome" : undefined);
   const alpn = p.alpn ? (Array.isArray(p.alpn) ? p.alpn : p.alpn.split(",").map((s: string) => s.trim())) : undefined;
+  const pin = p.pinnedPeerCertSha256 || p.pinSha256 || p.pinnedPeerCert || p.cert;
 
   const stream: any = {
     network: network === "splithttp" ? "xhttp" : network,
@@ -45,6 +46,7 @@ function buildStreamSettings(networkRaw: string, securityRaw: string, p: Record<
       serverName: sni,
       ...(fp ? { fingerprint: fp } : {}),
       ...(alpn ? { alpn } : {}),
+      ...(pin ? { pinnedPeerCertSha256: pin } : {}),
     };
   } else if (stream.security === "reality") {
     stream.realitySettings = {
@@ -115,6 +117,10 @@ function makeOutbound(raw: string, fallbackTag: string) {
         candidate = parsed;
       }
       if (!candidate) throw new Error("err.noOutbound");
+      // Strip obsolete allowInsecure to ensure compatibility with modern Xray-core
+      if (candidate.streamSettings?.tlsSettings && "allowInsecure" in candidate.streamSettings.tlsSettings) {
+        delete candidate.streamSettings.tlsSettings.allowInsecure;
+      }
       return { ...candidate, tag: candidate.tag || fallbackTag };
     } catch (e: any) {
       throw new Error(e?.message === "err.noOutbound" ? e.message : "err.json");
