@@ -1,10 +1,15 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+/* ChainForge: Minimal, focused V2Ray chain builder */
 import {
-  AlertCircle, ArrowDown, ArrowUp, Check, ClipboardPaste, Copy, Download, Github, Globe,
-  GitBranch, Languages, Laptop, LockKeyhole, Moon, Plus, RotateCcw, Sun, Terminal, Trash2,
-  WandSparkles, X, Zap
+  Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  AlertCircle, Check, ChevronDown, ClipboardPaste, Copy, Download, Github, Globe,
+  GitBranch, GripVertical, Laptop, LockKeyhole, Moon, Plus, RotateCcw, SlidersHorizontal, Sun, Terminal, Trash2,
+  WandSparkles, X
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
+import { detectLang, dirOf, dict, fmtNum, LANG_KEY, makeT, type Lang, type TFn } from "../lib/strings";
 
 type Hop = { id: number; value: string };
 const SAMPLE = [
@@ -98,7 +103,7 @@ function detectProtocol(raw: string) {
 
 function makeOutbound(raw: string, fallbackTag: string) {
   const input = tryBase64(raw);
-  if (!input) throw new Error("This field is empty");
+  if (!input) throw new Error("err.empty");
   
   if (input.trim().startsWith("{")) {
     try {
@@ -109,10 +114,10 @@ function makeOutbound(raw: string, fallbackTag: string) {
       } else if (parsed.protocol) {
         candidate = parsed;
       }
-      if (!candidate) throw new Error("No outbound found in the JSON");
+      if (!candidate) throw new Error("err.noOutbound");
       return { ...candidate, tag: candidate.tag || fallbackTag };
-    } catch {
-      throw new Error("Invalid JSON");
+    } catch (e: any) {
+      throw new Error(e?.message === "err.noOutbound" ? e.message : "err.json");
     }
   }
 
@@ -137,7 +142,7 @@ function makeOutbound(raw: string, fallbackTag: string) {
         streamSettings
       };
     } catch {
-      throw new Error("Invalid VMess link");
+      throw new Error("err.vmess");
     }
   }
 
@@ -181,22 +186,51 @@ function makeOutbound(raw: string, fallbackTag: string) {
       return { tag, protocol, settings: { servers: [server] } };
     }
   } catch (e: any) {
-    throw new Error(e instanceof TypeError ? "Invalid proxy link" : e.message || "Invalid proxy link");
+    throw new Error(e instanceof TypeError ? "err.link" : e.message || "err.link");
   }
 
-  throw new Error("Unsupported format. Use VLESS, VMess, Trojan, SOCKS, HTTP or JSON");
+  throw new Error("err.unsupported");
 }
 
-function buildConfig(hops: Hop[]) {
+type Settings = { socksPort: string; httpPort: string; logLevel: string; bypassLan: boolean };
+const DEFAULT_SETTINGS: Settings = { socksPort: "10808", httpPort: "10809", logLevel: "warning", bypassLan: false };
+const LOG_LEVELS = ["debug", "info", "warning", "error", "none"];
+const SETTINGS_KEY = "chainforge-settings";
+
+function loadSettings(): Settings {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
+    if (raw && typeof raw === "object") {
+      return {
+        socksPort: String(raw.socksPort ?? DEFAULT_SETTINGS.socksPort).replace(/\D/g, "").slice(0, 5),
+        httpPort: String(raw.httpPort ?? DEFAULT_SETTINGS.httpPort).replace(/\D/g, "").slice(0, 5),
+        logLevel: LOG_LEVELS.includes(raw.logLevel) ? raw.logLevel : DEFAULT_SETTINGS.logLevel,
+        bypassLan: !!raw.bypassLan,
+      };
+    }
+  } catch { /* storage unavailable or corrupt: use defaults */ }
+  return DEFAULT_SETTINGS;
+}
+
+const isPort = (v: string) => /^\d{1,5}$/.test(v.trim()) && +v >= 1 && +v <= 65535;
+
+/** Returns a dictionary key describing the problem, or null when the settings are usable. */
+function settingsError(s: Settings): "errPort" | "errPortSame" | null {
+  if (!isPort(s.socksPort) || !isPort(s.httpPort)) return "errPort";
+  if (+s.socksPort === +s.httpPort) return "errPortSame";
+  return null;
+}
+
+function buildConfig(hops: Hop[], settings: Settings) {
   const parsed = hops.map((hop, index) => makeOutbound(hop.value, `hop-${index + 1}`));
   const seen = new Set<string>();
   parsed.forEach((item, index) => { if (seen.has(item.tag)) item.tag = `${item.tag}-${index + 1}`; seen.add(item.tag); });
   const chained = parsed.map((item, index) => index === 0 ? item : { ...item, proxySettings: { tag: parsed[index - 1].tag } });
   return {
-    log: { loglevel: "warning" },
+    log: { loglevel: settings.logLevel },
     inbounds: [
-      { tag: "socks-in", port: 10808, listen: "127.0.0.1", protocol: "socks", settings: { auth: "noauth", udp: true } },
-      { tag: "http-in", port: 10809, listen: "127.0.0.1", protocol: "http", settings: {} },
+      { tag: "socks-in", port: Number(settings.socksPort), listen: "127.0.0.1", protocol: "socks", settings: { auth: "noauth", udp: true } },
+      { tag: "http-in", port: Number(settings.httpPort), listen: "127.0.0.1", protocol: "http", settings: {} },
     ],
     outbounds: [
       { ...chained[chained.length - 1], proxySettings: { tag: chained.length > 1 ? chained[chained.length - 2].tag : undefined } },
@@ -206,155 +240,22 @@ function buildConfig(hops: Hop[]) {
     ],
     routing: {
       domainStrategy: "AsIs",
-      rules: [{ type: "field", outboundTag: chained[chained.length - 1].tag, network: "udp,tcp" }]
+      rules: [
+        ...(settings.bypassLan ? [{ type: "field", ip: ["geoip:private"], outboundTag: "direct" }] : []),
+        { type: "field", outboundTag: chained[chained.length - 1].tag, network: "udp,tcp" },
+      ]
     },
   };
 }
 
 /* ------------------------------------------------------------------ */
-/* Bilingual Dictionary                                              */
-/* ------------------------------------------------------------------ */
-type Lang = "fa" | "en";
-
-const translations = {
-  fa: {
-    switchThemeLight: "تغییر به تم روشن",
-    switchThemeDark: "تغییر به تم تاریک",
-    githubTitle: "مشاهده سورس در گیت‌هاب",
-    switchLang: "Switch to English",
-    langLabel: "EN",
-
-    route: "مسیر اتصال",
-    readyCount: (filled: number, total: number) => `${filled} از ${total} سرور آماده`,
-    loadSample: "داده نمونه",
-    reset: "پاک‌سازی",
-    yourDevice: "دستگاه شما",
-    localProxy: "پروکسی محلی روی 127.0.0.1:10808 (SOCKS) و :10809 (HTTP)",
-    insertEntry: "افزودن به عنوان سرور اول",
-    insertHop: "افزودن سرور در این مرحله",
-    addAnotherHop: "افزودن سرور بعدی",
-    internet: "اینترنت آزاد",
-    internetDesc: "ترافیک از طریق آخرین سرور خارج می‌شود",
-
-    roleEntry: "سرور مبدأ (ورودی)",
-    roleExit: "سرور مقصد (خروجی)",
-    roleRelay: (n: number) => `سرور میانی (${n})`,
-    roleHintEntry: "اولین سروری که ترافیک شما به آن متصل می‌شود",
-    roleHintExit: "آخرین سرور، متصل‌کننده به اینترنت آزاد",
-    roleHintRelay: "هدایت‌کننده ترافیک بین سرورهای قبل و بعد",
-
-    paste: "جای‌گذاری",
-    clear: "پاک‌کردن",
-    moveUp: "انتقال به بالا",
-    moveDown: "انتقال به پایین",
-    removeHop: "حذف این سرور",
-    inputPlaceholder: "لینک کانفیگ (vless://, vmess://, trojan://, socks5://) یا JSON را وارد کنید...",
-    fieldEmpty: "این فیلد خالی است",
-
-    config: "کانفیگ خروجی",
-    statusEmpty: "تولید نشده",
-    statusReady: "آماده استفاده",
-    statusStale: "نیازمند به‌روزرسانی",
-    generate: "تولید کانفیگ زنجیره‌ای",
-    staleNote: "سرورها تغییر کرده‌اند. برای دریافت تنظیمات جدید، مجدداً دکمه تولید را بزنید.",
-    codeEmptyTitle: "کانفیگ شما اینجا نمایش داده می‌شود.",
-    codeEmptyDesc: "حداقل دو سرور وارد کرده و دکمه تولید کانفیگ را بزنید.",
-    copy: "کپی کد",
-    copied: "کپی شد",
-    downloadJson: "دانلود JSON",
-    panelNote: (lines: number, kb: string) => `${lines} خط · ${kb} کیلوبایت. قابل استفاده در v2rayN، v2rayNG، Nekoray، MahsaNG یا Streisand.`,
-    panelNoteEmpty: "قابل استفاده در v2rayN، v2rayNG، Nekoray، MahsaNG یا Streisand.",
-
-    privacy: "اجرای ۱۰۰٪ درون مرورگر. بدون ارسال داده به هیچ سرور خارجی.",
-    license: "تحت مجوز MIT",
-
-    pastedInto: (n: number) => `کانفیگ در سرور ${n} جای‌گذاری شد`,
-    clipboardBlocked: "دسترسی به کلیپ‌بورد مسدود است. لطفاً از Ctrl+V استفاده کنید",
-    atLeastTwo: "برای ساخت زنجیره حداقل به دو سرور نیاز است",
-    sampleLoaded: "سرورهای نمونه بارگذاری شدند",
-    formCleared: "فرم پاک‌سازی شد",
-    configGenerated: "کانفیگ زنجیره‌ای ساخته شد",
-    configCopied: "کانفیگ در کلیپ‌بورد کپی شد",
-    copyFailed: "کپی ناموفق بود. لطفاً متن را دستی کپی کنید",
-    fileSaved: "فایل کانفیگ ذخیره شد",
-  },
-  en: {
-    switchThemeLight: "Switch to light theme",
-    switchThemeDark: "Switch to dark theme",
-    githubTitle: "View source on GitHub",
-    switchLang: "تغییر به زبان فارسی",
-    langLabel: "FA",
-
-    route: "Route",
-    readyCount: (filled: number, total: number) => `${filled}/${total} ready`,
-    loadSample: "Load sample",
-    reset: "Reset",
-    yourDevice: "Your device",
-    localProxy: "Local proxy on 127.0.0.1:10808 (SOCKS) and :10809 (HTTP)",
-    insertEntry: "Insert as new entry",
-    insertHop: "Insert hop here",
-    addAnotherHop: "Add another hop",
-    internet: "Internet",
-    internetDesc: "Traffic exits through the last server",
-
-    roleEntry: "Entry",
-    roleExit: "Exit",
-    roleRelay: (n: number) => `Relay (${n})`,
-    roleHintEntry: "First server your traffic reaches",
-    roleHintExit: "Last hop, connects to the internet",
-    roleHintRelay: "Passes traffic between its neighbours",
-
-    paste: "Paste from clipboard",
-    clear: "Clear",
-    moveUp: "Move up",
-    moveDown: "Move down",
-    removeHop: "Remove hop",
-    inputPlaceholder: "Paste a vless://, vmess://, trojan://, socks5:// link or a JSON outbound",
-    fieldEmpty: "This field is empty",
-
-    config: "Config",
-    statusEmpty: "Not generated",
-    statusReady: "Up to date",
-    statusStale: "Outdated",
-    generate: "Generate chain config",
-    staleNote: "Servers changed since this was generated. Generate again to update it.",
-    codeEmptyTitle: "Your config appears here.",
-    codeEmptyDesc: "Add at least two servers, then press Generate.",
-    copy: "Copy",
-    copied: "Copied",
-    downloadJson: "Download JSON",
-    panelNote: (lines: number, kb: string) => `${lines} lines · ${kb} KB. Load the file in v2rayN, v2rayNG, Nekoray, MahsaNG or Streisand.`,
-    panelNoteEmpty: "Load the file in v2rayN, v2rayNG, Nekoray, MahsaNG or Streisand.",
-
-    privacy: "Runs 100% in your browser. No servers, no uploads.",
-    license: "MIT licensed",
-
-    pastedInto: (n: number) => `Pasted into hop ${n}`,
-    clipboardBlocked: "Clipboard access is blocked. Paste with Ctrl+V instead",
-    atLeastTwo: "A chain needs at least two servers",
-    sampleLoaded: "Sample servers loaded",
-    formCleared: "Form cleared",
-    configGenerated: "Chain config generated",
-    configCopied: "Config copied",
-    copyFailed: "Copy failed. Select the text and copy it manually",
-    fileSaved: "File saved",
-  }
-};
-
-type TranslationDict = typeof translations["fa"];
-
-/* ------------------------------------------------------------------ */
 /* UI helpers                                                          */
 /* ------------------------------------------------------------------ */
-const roleOf = (index: number, total: number, t: TranslationDict) =>
-  index === 0 ? t.roleEntry : index === total - 1 ? t.roleExit : t.roleRelay(index + 1);
+const roleKey = (index: number, total: number) =>
+  index === 0 ? "roleEntry" : index === total - 1 ? "roleExit" : "roleRelay";
 
-const roleHint = (index: number, total: number, t: TranslationDict) =>
-  index === 0
-    ? t.roleHintEntry
-    : index === total - 1
-      ? t.roleHintExit
-      : t.roleHintRelay;
+const hintKey = (index: number, total: number) =>
+  index === 0 ? "hintEntry" : index === total - 1 ? "hintExit" : "hintRelay";
 
 function summarize(raw: string) {
   if (!raw.trim()) return null;
@@ -369,7 +270,7 @@ function summarize(raw: string) {
       security: o.streamSettings?.security as string | undefined,
     };
   } catch (e: any) {
-    return { ok: false as const, error: (e?.message as string) || "Invalid link" };
+    return { ok: false as const, error: (e?.message as string) || "err.link" };
   }
 }
 
@@ -386,6 +287,46 @@ function highlight(json: string) {
   );
 }
 
+/* Elements that glide to their new place when the language (and so the layout direction) changes. */
+const FLIP_SEL =
+  ".logo, .tag, .lang-switch, .tool-btn, .route-title, .route-tools, .pin, .card, " +
+  ".end-node, .slot-btn, .slot-label, .add-hop, .panel, .footer > span";
+/* Text blocks that also fade in, so the swap of words is not a hard cut. */
+const FADE_SEL =
+  ".route-title, .route-tools, .card, .end-node, .slot-label, .add-hop, .panel, .footer > span";
+
+const reduceMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/* ---- drag & drop sorting -------------------------------------------------------------- */
+type DragUnit = { slot: HTMLElement | null; stop: HTMLElement; top: number; h: number };
+type DragState = {
+  from: number; target: number; dy: number; startY: number; lastY: number; startScroll: number;
+  units: DragUnit[]; pointerId: number; raf: number; cleanup: () => void;
+};
+
+/** Positions every row for the current pointer: the dragged row follows, the rows it passes make room. */
+function applyDrag(st: DragState) {
+  const { units, from } = st;
+  const d = units[from];
+  const last = units[units.length - 1];
+  let dy = st.lastY - st.startY + (window.scrollY - st.startScroll);
+  dy = Math.max(units[0].top - d.top, Math.min(last.top + last.h - (d.top + d.h), dy));
+  st.dy = dy;
+  const center = d.top + d.h / 2 + dy;
+  let target = 0;
+  units.forEach((u, j) => { if (j !== from && u.top + u.h / 2 < center) target++; });
+  st.target = target;
+  units.forEach((u, j) => {
+    let y = 0;
+    if (j === from) y = dy;
+    else if (target > from && j > from && j <= target) y = -d.h;
+    else if (target < from && j >= target && j < from) y = d.h;
+    const v = y ? `translateY(${y}px)` : "";
+    u.stop.style.transform = v;
+    if (u.slot) u.slot.style.transform = v;
+  });
+}
+
 const focusHop = (id: number) => {
   const el = document.getElementById(`proxy-${id}`) as HTMLTextAreaElement | null;
   if (!el) return;
@@ -394,20 +335,13 @@ const focusHop = (id: number) => {
 };
 
 export default function Home() {
-  const [lang, setLang] = useState<Lang>(() => {
-    let saved: string | null = null;
-    try { saved = localStorage.getItem("chainforge-lang"); } catch {}
-    if (saved === "fa" || saved === "en") return saved;
-    return (navigator.language && navigator.language.startsWith("fa")) ? "fa" : "fa";
-  });
-
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     let saved: string | null = null;
     try { saved = localStorage.getItem("chainforge-theme"); } catch { /* storage unavailable */ }
     if (saved === "light" || saved === "dark") return saved;
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
-
+  const [lang, setLang] = useState<Lang>(detectLang);
   const [hops, setHops] = useState<Hop[]>([{ id: 1, value: "" }, { id: 2, value: "" }]);
   const [output, setOutput] = useState<any>(null);
   const [generatedKey, setGeneratedKey] = useState("");
@@ -415,14 +349,33 @@ export default function Home() {
   const [feedback, setFeedback] = useState<"copy" | "download" | null>(null);
   const nextId = useRef(3);
   const panelRef = useRef<HTMLElement>(null);
+  const railRef = useRef<HTMLOListElement>(null);
+  const genRef = useRef<HTMLButtonElement>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const hopFlip = useRef<Map<Element, DOMRect> | null>(null);
+  const focusHandleId = useRef<number | null>(null);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [advOpen, setAdvOpen] = useState(false);
+  const [panelBtnVisible, setPanelBtnVisible] = useState(false);
 
-  const t = translations[lang];
+  const t = useMemo(() => makeT(lang), [lang]);
+  const dir = dirOf(lang);
+  const fmt = (n: number, digits = 0) => fmtNum(lang, n, digits);
+  /** Error messages thrown by the logic are dictionary keys ("err.*"); anything else is shown as-is. */
+  const tr = (msg: string) => (msg.startsWith("err.") ? t(msg) : msg);
 
-  useEffect(() => {
-    document.documentElement.setAttribute("lang", lang);
-    document.documentElement.setAttribute("dir", lang === "fa" ? "rtl" : "ltr");
-    try { localStorage.setItem("chainforge-lang", lang); } catch {}
-  }, [lang]);
+  const json = useMemo(() => (output ? JSON.stringify(output, null, 2) : ""), [output]);
+  const html = useMemo(() => (json ? highlight(json) : ""), [json]);
+  const hopsKey = useMemo(() => hops.map((h) => h.value.trim()).join("\n§\n"), [hops]);
+  const configKey = useMemo(() => hopsKey + "\n#\n" + JSON.stringify(settings), [hopsKey, settings]);
+  const settingsErr = settingsError(settings);
+  const isCustomSettings = JSON.stringify(settings) !== JSON.stringify(DEFAULT_SETTINGS);
+  const isStale = !!output && generatedKey !== configKey;
+  const status: "empty" | "ready" | "stale" = !output ? "empty" : isStale ? "stale" : "ready";
+  const jsonMeta = useMemo(() => {
+    if (!json) return null;
+    return { lines: json.split("\n").length, kb: new Blob([json]).size / 1024 };
+  }, [json]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -433,18 +386,107 @@ export default function Home() {
     try { localStorage.setItem("chainforge-theme", theme); } catch { /* ignore */ }
   }, [theme]);
 
-  const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  const toggleLang = () => setLang((prev) => (prev === "fa" ? "en" : "fa"));
+  // Runs before paint: set lang/dir, then slide every tracked element from where it was to where it is now (FLIP).
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute("lang", lang);
+    root.setAttribute("dir", dir);
+    document.title = dict[lang].docTitle;
+    document.querySelector('meta[name="description"]')?.setAttribute("content", dict[lang].docDesc);
+    try { localStorage.setItem(LANG_KEY, lang); } catch { /* ignore */ }
 
-  const json = useMemo(() => (output ? JSON.stringify(output, null, 2) : ""), [output]);
-  const html = useMemo(() => (json ? highlight(json) : ""), [json]);
-  const hopsKey = useMemo(() => hops.map((h) => h.value.trim()).join("\n§\n"), [hops]);
-  const isStale = !!output && generatedKey !== hopsKey;
-  const status: "empty" | "ready" | "stale" = !output ? "empty" : isStale ? "stale" : "ready";
-  const jsonMeta = useMemo(() => {
-    if (!json) return null;
-    return { lines: json.split("\n").length, kb: (new Blob([json]).size / 1024).toFixed(1) };
-  }, [json]);
+    const before = flipRects.current;
+    flipRects.current = null;
+    if (!before) return;
+    const vh = window.innerHeight;
+    let i = 0;
+    before.forEach((a, el) => {
+      if (!el.isConnected) return;
+      const b = el.getBoundingClientRect();
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      if ((a.bottom < 0 && b.bottom < 0) || (a.top > vh && b.top > vh)) return;
+      el.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px)`, opacity: el.matches(FADE_SEL) ? 0.3 : 1 },
+          { transform: "translate(0, 0)", opacity: 1 },
+        ],
+        { duration: 520, delay: Math.min(i * 16, 160), easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards" }
+      );
+      i++;
+    });
+  }, [lang, dir]);
+
+  useEffect(() => {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
+  }, [settings]);
+
+  // The bottom bar (narrow screens) is only needed while the panel's own Generate button is out of view.
+  useEffect(() => {
+    const el = genRef.current;
+    if (!el || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver(([entry]) => setPanelBtnVisible(entry.isIntersecting), { threshold: 0.6 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // After hops are reordered: restore handle focus and glide every row from its old place to its new one.
+  useLayoutEffect(() => {
+    const fid = focusHandleId.current;
+    if (fid != null) {
+      focusHandleId.current = null;
+      document.querySelector<HTMLElement>(`li.stop[data-hop="${fid}"] .drag-handle`)?.focus({ preventScroll: true });
+    }
+    const before = hopFlip.current;
+    hopFlip.current = null;
+    if (!before) return;
+    before.forEach((a, el) => {
+      if (!el.isConnected) return;
+      const b = el.getBoundingClientRect();
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+        { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+      );
+    });
+  }, [hops]);
+
+  // Load the Persian font up front so the first switch does not shift when it arrives.
+  useEffect(() => {
+    (document as any).fonts?.load?.("400 16px Vazirmatn", "فا").catch?.(() => {});
+    (document as any).fonts?.load?.("700 16px Vazirmatn", "فا").catch?.(() => {});
+  }, []);
+
+  const flipRects = useRef<Map<Element, DOMRect> | null>(null);
+  const changeLang = (next: Lang) => {
+    if (next === lang) return;
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      const rects = new Map<Element, DOMRect>();
+      document.querySelectorAll(FLIP_SEL).forEach((el) => rects.set(el, el.getBoundingClientRect()));
+      flipRects.current = rects;
+
+      // The switch itself: the thumb stretches toward where it is going, the new label pops.
+      const sw = document.querySelector(".lang-switch");
+      const thumb = sw?.querySelector<HTMLElement>(".lang-thumb");
+      if (thumb) {
+        thumb.style.transformOrigin = next === "fa" ? "left center" : "right center";
+        thumb.animate(
+          [{ scale: "1 1" }, { scale: "1.6 0.84", offset: 0.38 }, { scale: "1 1" }],
+          { duration: 460, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+        );
+      }
+      sw?.querySelector<HTMLElement>(`button[lang="${next}"]`)?.animate(
+        [{ transform: "scale(0.78)" }, { transform: "scale(1.14)", offset: 0.55 }, { transform: "scale(1)" }],
+        { duration: 420, easing: "ease-out" }
+      );
+    }
+    setLang(next);
+  };
+
+  const toggleTheme = () => setTheme((x) => (x === "dark" ? "light" : "dark"));
 
   const dropError = (id: number) =>
     setErrors((e) => {
@@ -471,26 +513,128 @@ export default function Home() {
   };
 
   const removeHop = (id: number) => {
-    if (hops.length <= 2) return toast.error(t.atLeastTwo);
+    if (hops.length <= 2) return toast.error(t("toastMinTwo"));
     setHops((items) => items.filter((item) => item.id !== id));
     dropError(id);
   };
 
-  const moveHop = (index: number, direction: -1 | 1) => {
+  const captureHopFlip = () => {
+    if (reduceMotion()) return;
+    const rects = new Map<Element, DOMRect>();
+    railRef.current?.querySelectorAll(".stop[data-hop], .slot").forEach((el) => rects.set(el, el.getBoundingClientRect()));
+    hopFlip.current = rects;
+  };
+
+  const reorderHops = (from: number, to: number) => {
+    if (from === to) return;
+    captureHopFlip();
     setHops((items) => {
       const next = [...items];
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return items;
-      [next[index], next[target]] = [next[target], next[index]];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
       return next;
     });
+  };
+
+  const onHandleKey = (e: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const to = index + step;
+    if (to < 0 || to >= hops.length) return;
+    focusHandleId.current = hops[index].id;
+    reorderHops(index, to);
+  };
+
+  const onHandleDown = (e: ReactPointerEvent<HTMLButtonElement>, index: number) => {
+    if (dragRef.current) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const rail = railRef.current;
+    if (!rail || hops.length < 2) return;
+    const stops = Array.from(rail.querySelectorAll<HTMLElement>("li.stop[data-hop]"));
+    if (stops.length !== hops.length) return;
+    e.preventDefault();
+
+    const units: DragUnit[] = stops.map((stop) => {
+      const prev = stop.previousElementSibling as HTMLElement | null;
+      const slot = prev && prev.classList.contains("slot") ? prev : null;
+      const r = stop.getBoundingClientRect();
+      const top = slot ? slot.getBoundingClientRect().top : r.top;
+      return { slot, stop, top, h: r.bottom - top };
+    });
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not supported */ }
+
+    const st: DragState = {
+      from: index, target: index, dy: 0, startY: e.clientY, lastY: e.clientY,
+      startScroll: window.scrollY, units, pointerId: e.pointerId, raf: 0, cleanup: () => {},
+    };
+    dragRef.current = st;
+    document.body.classList.add("is-dragging");
+    rail.classList.add("is-sorting");
+    units[index].stop.classList.add("is-dragged");
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== st.pointerId) return;
+      st.lastY = ev.clientY;
+      applyDrag(st);
+    };
+    const finish = (commit: boolean) => {
+      if (dragRef.current !== st) return;
+      dragRef.current = null;
+      cancelAnimationFrame(st.raf);
+      st.cleanup();
+      const changed = commit && st.target !== st.from;
+      const els = units.flatMap((u) => (u.slot ? [u.slot, u.stop] : [u.stop]));
+      const tops = els.map((el) => el.getBoundingClientRect().top);
+      if (changed) reorderHops(st.from, st.target); // records rects while the drag transforms are still applied
+      rail.classList.remove("is-sorting");
+      document.body.classList.remove("is-dragging");
+      units.forEach((u) => {
+        u.stop.style.transform = "";
+        if (u.slot) u.slot.style.transform = "";
+        u.stop.classList.remove("is-dragged");
+      });
+      if (!changed && !reduceMotion()) {
+        els.forEach((el, i) => {
+          const dy = tops[i] - el.getBoundingClientRect().top;
+          if (Math.abs(dy) > 1) {
+            el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+          }
+        });
+      }
+    };
+    const up = (ev: PointerEvent) => { if (ev.pointerId === st.pointerId) finish(true); };
+    const abort = (ev: PointerEvent) => { if (ev.pointerId === st.pointerId) finish(false); };
+    const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") finish(false); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", abort);
+    window.addEventListener("keydown", esc);
+    st.cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", abort);
+      window.removeEventListener("keydown", esc);
+    };
+
+    // Scroll the page while the pointer is near the top or bottom edge.
+    const tick = () => {
+      if (dragRef.current !== st) return;
+      const edge = 70;
+      const vh = window.innerHeight;
+      if (st.lastY < edge) window.scrollBy({ top: -Math.ceil((edge - st.lastY) / 4), behavior: "instant" });
+      else if (st.lastY > vh - edge) window.scrollBy({ top: Math.ceil((st.lastY - (vh - edge)) / 4), behavior: "instant" });
+      applyDrag(st);
+      st.raf = requestAnimationFrame(tick);
+    };
+    st.raf = requestAnimationFrame(tick);
   };
 
   const generate = () => {
     const nextErrors: Record<number, string> = {};
     hops.forEach((hop) => {
       if (!hop.value.trim()) {
-        nextErrors[hop.id] = t.fieldEmpty;
+        nextErrors[hop.id] = "err.empty";
         return;
       }
       try {
@@ -503,21 +647,29 @@ export default function Home() {
 
     const firstBad = hops.findIndex((h) => nextErrors[h.id]);
     if (firstBad !== -1) {
-      toast.error(`${lang === "fa" ? `سرور ${firstBad + 1}` : `Hop ${firstBad + 1}`}: ${nextErrors[hops[firstBad].id]}`);
+      toast.error(t("hopError", { n: fmt(firstBad + 1), msg: tr(nextErrors[hops[firstBad].id]) }));
       focusHop(hops[firstBad].id);
       return;
     }
 
+    if (settingsErr) {
+      setAdvOpen(true);
+      toast.error(t("toastSettings"));
+      return;
+    }
+
     try {
-      setOutput(buildConfig(hops));
-      setGeneratedKey(hopsKey);
-      toast.success(t.configGenerated);
-      window.setTimeout(() => {
-        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-        panelRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
-      }, 60);
+      setOutput(buildConfig(hops, settings));
+      setGeneratedKey(configKey);
+      toast.success(t("toastGenerated"));
+      // On narrow screens the bottom bar keeps Copy within reach, so the page stays where it is.
+      if (window.matchMedia?.("(min-width: 921px)").matches) {
+        window.setTimeout(() => {
+          panelRef.current?.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "nearest" });
+        }, 60);
+      }
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(tr(error.message));
     }
   };
 
@@ -530,7 +682,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hops, lang]);
+  }, [hops, lang, settings]);
 
   const flash = (kind: "copy" | "download") => {
     setFeedback(kind);
@@ -542,9 +694,9 @@ export default function Home() {
     try {
       await navigator.clipboard.writeText(json);
       flash("copy");
-      toast.success(t.configCopied);
+      toast.success(t("toastCopied"));
     } catch {
-      toast.error(t.copyFailed);
+      toast.error(t("toastCopyFail"));
     }
   };
 
@@ -557,7 +709,7 @@ export default function Home() {
     a.click();
     URL.revokeObjectURL(url);
     flash("download");
-    toast.success(t.fileSaved);
+    toast.success(t("toastSaved"));
   };
 
   const loadSample = () => {
@@ -566,7 +718,7 @@ export default function Home() {
     setOutput(null);
     setGeneratedKey("");
     setErrors({});
-    toast.info(t.sampleLoaded);
+    toast.info(t("toastSample"));
   };
 
   const reset = () => {
@@ -576,7 +728,7 @@ export default function Home() {
     setGeneratedKey("");
     setErrors({});
     setFeedback(null);
-    toast.success(t.formCleared);
+    toast.success(t("toastCleared"));
   };
 
   const filledCount = hops.filter((h) => h.value.trim()).length;
@@ -584,30 +736,44 @@ export default function Home() {
 
   return (
     <div className="app">
-      <Toaster position="top-center" richColors theme={theme} dir={lang === "fa" ? "rtl" : "ltr"} />
+      <Toaster position="top-center" richColors theme={theme} dir={dir} />
 
       <header className="topbar">
-        <a className="logo" href="./" aria-label="ChainForge home">
+        <a className="logo" href="./" aria-label={t("logoAria")}>
           <span className="logo-mark"><GitBranch size={18} aria-hidden="true" /></span>
           <span className="logo-name">ChainForge</span>
         </a>
         <div className="topbar-tools">
-          <button
-            type="button"
-            className="tool-btn lang-btn"
-            onClick={toggleLang}
-            aria-label={t.switchLang}
-            title={t.switchLang}
-          >
-            <Languages size={17} aria-hidden="true" />
-            <span>{t.langLabel}</span>
-          </button>
+          <span className="tag">V2Ray · Xray</span>
+          <div className="lang-switch" role="group" aria-label={t("langLabel")} data-lang={lang}>
+            <span className="lang-thumb" aria-hidden="true" />
+            <button
+              type="button"
+              lang="en"
+              className={lang === "en" ? "on" : ""}
+              aria-pressed={lang === "en"}
+              title="English"
+              onClick={() => changeLang("en")}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              lang="fa"
+              className={lang === "fa" ? "on" : ""}
+              aria-pressed={lang === "fa"}
+              title="فارسی"
+              onClick={() => changeLang("fa")}
+            >
+              فا
+            </button>
+          </div>
           <button
             type="button"
             className="tool-btn"
             onClick={toggleTheme}
-            aria-label={theme === "dark" ? t.switchThemeLight : t.switchThemeDark}
-            title={theme === "dark" ? t.switchThemeLight : t.switchThemeDark}
+            aria-label={theme === "dark" ? t("themeToLight") : t("themeToDark")}
+            title={theme === "dark" ? t("themeLightTitle") : t("themeDarkTitle")}
           >
             {theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
           </button>
@@ -616,8 +782,8 @@ export default function Home() {
             target="_blank"
             rel="noreferrer"
             className="tool-btn"
-            aria-label={t.githubTitle}
-            title={t.githubTitle}
+            aria-label={t("githubAria")}
+            title={t("githubAria")}
           >
             <Github size={17} aria-hidden="true" />
           </a>
@@ -630,73 +796,77 @@ export default function Home() {
           <section className="route" aria-labelledby="route-title">
             <div className="route-head">
               <div className="route-title">
-                <h2 id="route-title">{t.route}</h2>
-                <span className="count">{t.readyCount(filledCount, hops.length)}</span>
+                <h2 id="route-title">{t("route")}</h2>
+                <span className="count">{t("ready", { n: fmt(filledCount), m: fmt(hops.length) })}</span>
               </div>
               <div className="route-tools">
                 <button type="button" className="text-btn" onClick={loadSample}>
-                  <WandSparkles size={15} aria-hidden="true" /> {t.loadSample}
+                  <WandSparkles size={15} aria-hidden="true" /> {t("loadSample")}
                 </button>
                 <button type="button" className="text-btn danger" onClick={reset}>
-                  <RotateCcw size={15} aria-hidden="true" /> {t.reset}
+                  <RotateCcw size={15} aria-hidden="true" /> {t("reset")}
                 </button>
               </div>
             </div>
 
-            <ol className={`rail ${routeReady ? "rail-ready" : ""}`}>
+            <ol className={`rail ${routeReady ? "rail-ready" : ""}`} ref={railRef}>
               <li className="stop">
                 <span className="pin pin-end"><Laptop size={17} aria-hidden="true" /></span>
                 <div className="end-node">
-                  <strong>{t.yourDevice}</strong>
-                  <span>{t.localProxy}</span>
+                  <strong>{t("yourDevice")}</strong>
+                  <span>
+                    {t("localProxyOn")} <code>127.0.0.1:{settings.socksPort}</code> (SOCKS) {t("and")} <code>:{settings.httpPort}</code> (HTTP)
+                  </span>
                 </div>
               </li>
 
               {hops.map((hop, index) => (
                 <Fragment key={hop.id}>
-                <li className="slot">
-                  <button
-                    type="button"
-                    className="slot-btn"
-                    onClick={() => insertHop(index)}
-                    aria-label={index === 0 ? t.insertEntry : t.insertHop}
-                  >
-                    <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
-                  </button>
-                  <span className="slot-label">{index === 0 ? t.insertEntry : t.insertHop}</span>
-                </li>
-                <li className="stop">
-                  <span className={`pin ${errors[hop.id] ? "pin-error" : hop.value.trim() ? "pin-filled" : ""}`}>
-                    {index + 1}
-                  </span>
-                  <ProxyCard
-                    id={hop.id}
-                    index={index}
-                    total={hops.length}
-                    value={hop.value}
-                    error={errors[hop.id]}
-                    onChange={(value: string) => updateHop(hop.id, value)}
-                    onClear={() => updateHop(hop.id, "")}
-                    onDelete={() => removeHop(hop.id)}
-                    onMove={(dir: -1 | 1) => moveHop(index, dir)}
-                    canDelete={hops.length > 2}
-                    t={t}
-                    lang={lang}
-                  />
-                </li>
+                  <li className="slot">
+                    <button
+                      type="button"
+                      className="slot-btn"
+                      onClick={() => insertHop(index)}
+                      aria-label={index === 0 ? t("insertBeforeEntry") : t("insertAtPosition", { n: fmt(index + 1) })}
+                    >
+                      <Plus size={13} strokeWidth={2.6} aria-hidden="true" />
+                    </button>
+                    <span className="slot-label">{index === 0 ? t("insertAsEntry") : t("insertHere")}</span>
+                  </li>
+                  <li className="stop" data-hop={hop.id}>
+                    <span className={`pin ${errors[hop.id] ? "pin-error" : hop.value.trim() ? "pin-filled" : ""}`}>
+                      {fmt(index + 1)}
+                    </span>
+                    <ProxyCard
+                      id={hop.id}
+                      index={index}
+                      total={hops.length}
+                      value={hop.value}
+                      error={errors[hop.id]}
+                      t={t}
+                      fmt={fmt}
+                      tr={tr}
+                      onChange={(value: string) => updateHop(hop.id, value)}
+                      onClear={() => updateHop(hop.id, "")}
+                      onDelete={() => removeHop(hop.id)}
+                      onHandleDown={(e) => onHandleDown(e, index)}
+                      onHandleKey={(e) => onHandleKey(e, index)}
+                      canDelete={hops.length > 2}
+                    />
+                  </li>
                 </Fragment>
               ))}
 
               <li className="stop stop-add">
                 <span className="pin pin-add"><Plus size={16} aria-hidden="true" /></span>
-                <button type="button" className="add-hop" onClick={addHop}>{t.addAnotherHop}</button>
+                <button type="button" className="add-hop" onClick={addHop}>{t("addHop")}</button>
               </li>
 
               <li className="stop">
                 <span className="pin pin-end"><Globe size={17} aria-hidden="true" /></span>
                 <div className="end-node">
-                  <strong>{t.internet}</strong>
-                  <span>{t.internetDesc}</span>
+                  <strong>{t("internet")}</strong>
+                  <span>{t("internetHint")}</span>
                 </div>
               </li>
             </ol>
@@ -705,35 +875,118 @@ export default function Home() {
           {/* ------------------------------ Config ------------------------------ */}
           <aside className="panel" ref={panelRef} aria-labelledby="config-title">
             <div className="panel-head">
-              <h2 id="config-title">{t.config}</h2>
+              <h2 id="config-title">{t("config")}</h2>
               <span className={`status status-${status}`}>
-                {status === "empty" ? t.statusEmpty : status === "ready" ? t.statusReady : t.statusStale}
+                {status === "empty" ? t("statusEmpty") : status === "ready" ? t("statusReady") : t("statusStale")}
               </span>
             </div>
 
-            <button type="button" className="generate" onClick={generate}>
-              <span className="generate-text">
-                <Zap size={17} className="generate-icon" aria-hidden="true" />
-                <span>{t.generate}</span>
-              </span>
+            <button type="button" className="generate" onClick={generate} ref={genRef}>
+              <span>{t("generate")}</span>
               <kbd className="kbd" aria-hidden="true">Ctrl ↵</kbd>
             </button>
 
             {isStale && (
               <div className="stale-note" role="status">
                 <AlertCircle size={15} aria-hidden="true" />
-                <span>{t.staleNote}</span>
+                <span>{t("staleNote")}</span>
               </div>
             )}
 
+            <div className={`adv ${advOpen ? "open" : ""}`}>
+              <button
+                type="button"
+                className="adv-head"
+                aria-expanded={advOpen}
+                aria-controls="adv-body"
+                onClick={() => setAdvOpen((o) => !o)}
+              >
+                <SlidersHorizontal size={15} aria-hidden="true" />
+                <span>{t("advTitle")}</span>
+                {settingsErr ? (
+                  <AlertCircle size={14} className="adv-warn" aria-hidden="true" />
+                ) : isCustomSettings ? (
+                  <span className="adv-dot" aria-hidden="true" />
+                ) : null}
+                <ChevronDown size={16} className="adv-chev" aria-hidden="true" />
+              </button>
+              <div className="adv-body" id="adv-body" inert={!advOpen}>
+                <div className="adv-inner">
+                  <div className="adv-pad">
+                    <div className="adv-grid">
+                      <label className="field">
+                        <span>{t("advSocks")}</span>
+                        <input
+                          id="adv-socks"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          value={settings.socksPort}
+                          aria-invalid={!isPort(settings.socksPort) || settingsErr === "errPortSame"}
+                          onChange={(e) => setSettings((x) => ({ ...x, socksPort: e.target.value.replace(/\D/g, "").slice(0, 5) }))}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>{t("advHttp")}</span>
+                        <input
+                          id="adv-http"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          value={settings.httpPort}
+                          aria-invalid={!isPort(settings.httpPort) || settingsErr === "errPortSame"}
+                          onChange={(e) => setSettings((x) => ({ ...x, httpPort: e.target.value.replace(/\D/g, "").slice(0, 5) }))}
+                        />
+                      </label>
+                      <label className="field wide">
+                        <span>{t("advLog")}</span>
+                        <select
+                          id="adv-log"
+                          value={settings.logLevel}
+                          onChange={(e) => setSettings((x) => ({ ...x, logLevel: e.target.value }))}
+                        >
+                          {LOG_LEVELS.map((lv) => (
+                            <option key={lv} value={lv}>{lv}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <label className="check">
+                      <input
+                        id="adv-bypass"
+                        type="checkbox"
+                        checked={settings.bypassLan}
+                        onChange={(e) => setSettings((x) => ({ ...x, bypassLan: e.target.checked }))}
+                      />
+                      <span>
+                        {t("advBypass")}
+                        <small>{t("advBypassHint")}</small>
+                      </span>
+                    </label>
+                    {settingsErr && (
+                      <p className="field-error" role="alert">
+                        <AlertCircle size={15} aria-hidden="true" /> <span>{t(settingsErr)}</span>
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      className="text-btn adv-reset"
+                      onClick={() => setSettings(DEFAULT_SETTINGS)}
+                      disabled={!isCustomSettings}
+                    >
+                      <RotateCcw size={14} aria-hidden="true" /> {t("advReset")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className={`code ${isStale ? "is-stale" : ""}`}>
               {json ? (
-                <pre tabIndex={0} aria-label="Generated JSON config" dangerouslySetInnerHTML={{ __html: html }} />
+                <pre tabIndex={0} aria-label={t("codeAria")} dangerouslySetInnerHTML={{ __html: html }} />
               ) : (
                 <div className="code-empty">
                   <Terminal size={20} aria-hidden="true" />
-                  <p>{t.codeEmptyTitle}</p>
-                  <span>{t.codeEmptyDesc}</span>
+                  <p>{t("emptyTitle")}</p>
+                  <span>{t("emptyText")}</span>
                 </div>
               )}
             </div>
@@ -741,16 +994,17 @@ export default function Home() {
             <div className="panel-foot">
               <button type="button" className="out-btn" onClick={copy} disabled={!output}>
                 {feedback === "copy" ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
-                <span>{feedback === "copy" ? t.copied : t.copy}</span>
+                <span>{feedback === "copy" ? t("copied") : t("copy")}</span>
               </button>
               <button type="button" className="out-btn solid" onClick={download} disabled={!output}>
                 {feedback === "download" ? <Check size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
-                <span>{t.downloadJson}</span>
+                <span>{t("download")}</span>
               </button>
             </div>
 
             <p className="panel-note">
-              {jsonMeta ? t.panelNote(jsonMeta.lines, jsonMeta.kb) : t.panelNoteEmpty}
+              {jsonMeta ? <>{t("metaLine", { lines: fmt(jsonMeta.lines), kb: fmt(jsonMeta.kb, 1) })} </> : null}
+              {t("clients")}
             </p>
           </aside>
         </div>
@@ -758,10 +1012,18 @@ export default function Home() {
 
       <footer className="footer">
         <span className="privacy">
-          <LockKeyhole size={14} aria-hidden="true" /> {t.privacy}
+          <LockKeyhole size={14} aria-hidden="true" /> {t("privacy")}
         </span>
-        <span>{t.license}</span>
+        <span>{t("license")}</span>
       </footer>
+
+      <div className={`mbar ${panelBtnVisible ? "" : "show"}`} inert={panelBtnVisible}>
+        <button type="button" className="mbar-gen" onClick={generate}>{t("generate")}</button>
+        <button type="button" className="mbar-copy" onClick={copy} disabled={!output}>
+          {feedback === "copy" ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+          <span>{feedback === "copy" ? t("copied") : t("copy")}</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -772,22 +1034,25 @@ interface ProxyCardProps {
   total: number;
   value: string;
   error?: string;
+  t: TFn;
+  fmt: (n: number, digits?: number) => string;
+  tr: (msg: string) => string;
   onChange: (value: string) => void;
   onClear: () => void;
   onDelete: () => void;
-  onMove: (direction: -1 | 1) => void;
+  onHandleDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onHandleKey: (e: ReactKeyboardEvent<HTMLButtonElement>) => void;
   canDelete: boolean;
-  t: TranslationDict;
-  lang: Lang;
 }
 
-function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete, onMove, canDelete, t, lang }: ProxyCardProps) {
+function ProxyCard({ id, index, total, value, error, t, fmt, tr, onChange, onClear, onDelete, onHandleDown, onHandleKey, canDelete }: ProxyCardProps) {
   const protocolInfo = useMemo(() => detectProtocol(value), [value]);
   const summary = useMemo(() => summarize(value), [value]);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const role = roleOf(index, total, t);
+  const role = t(roleKey(index, total));
   const message = error || (summary && !summary.ok ? summary.error : "");
 
+  // Auto-grow the textarea to fit its content
   useLayoutEffect(() => {
     const el = taRef.current;
     if (!el) return;
@@ -800,41 +1065,45 @@ function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete
       const text = await navigator.clipboard.readText();
       if (text) {
         onChange(text);
-        toast.success(t.pastedInto(index + 1));
+        toast.success(t("toastPasted", { n: fmt(index + 1) }));
       }
     } catch {
-      toast.error(t.clipboardBlocked);
+      toast.error(t("toastClipboardBlocked"));
     }
   };
 
   return (
-    <article className={`card ${message ? "has-error" : ""}`} aria-label={`${lang === "fa" ? `سرور ${index + 1}` : `Hop ${index + 1}`}, ${role}`}>
+    <article className={`card ${message ? "has-error" : ""}`} aria-label={t("hopLabel", { n: fmt(index + 1), role })}>
       <div className="card-top">
         <div className="card-heading">
           <label className="card-role" htmlFor={`proxy-${id}`}>{role}</label>
           {protocolInfo.badge && (
             <span className={`protocol-badge protocol-${protocolInfo.type}`}>{protocolInfo.badge}</span>
           )}
-          <span className="card-hint">{roleHint(index, total, t)}</span>
+          <span className="card-hint">{t(hintKey(index, total))}</span>
         </div>
 
         <div className="card-actions">
-          <button type="button" className="icon-btn" onClick={handlePaste} aria-label={t.paste} title={t.paste}>
+          <button
+            type="button"
+            className="icon-btn drag-handle"
+            onPointerDown={onHandleDown}
+            onKeyDown={onHandleKey}
+            aria-label={t("dragHandle")}
+            title={t("dragHandle")}
+          >
+            <GripVertical size={16} aria-hidden="true" />
+          </button>
+          <button type="button" className="icon-btn" onClick={handlePaste} aria-label={t("pasteAria")} title={t("pasteAria")}>
             <ClipboardPaste size={15} aria-hidden="true" />
           </button>
           {value && (
-            <button type="button" className="icon-btn" onClick={onClear} aria-label={t.clear} title={t.clear}>
+            <button type="button" className="icon-btn" onClick={onClear} aria-label={t("clearAria")} title={t("clearTitle")}>
               <X size={15} aria-hidden="true" />
             </button>
           )}
-          <button type="button" className="icon-btn" onClick={() => onMove(-1)} disabled={index === 0} aria-label={t.moveUp} title={t.moveUp}>
-            <ArrowUp size={15} aria-hidden="true" />
-          </button>
-          <button type="button" className="icon-btn" onClick={() => onMove(1)} disabled={index === total - 1} aria-label={t.moveDown} title={t.moveDown}>
-            <ArrowDown size={15} aria-hidden="true" />
-          </button>
           {canDelete && (
-            <button type="button" className="icon-btn delete" onClick={onDelete} aria-label={t.removeHop} title={t.removeHop}>
+            <button type="button" className="icon-btn delete" onClick={onDelete} aria-label={t("removeAria")} title={t("removeTitle")}>
               <Trash2 size={15} aria-hidden="true" />
             </button>
           )}
@@ -846,7 +1115,7 @@ function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete
         id={`proxy-${id}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={t.inputPlaceholder}
+        placeholder={t("placeholder")}
         spellCheck={false}
         autoComplete="off"
         autoCapitalize="off"
@@ -857,11 +1126,11 @@ function ProxyCard({ id, index, total, value, error, onChange, onClear, onDelete
 
       {message ? (
         <p className="field-error" id={`proxy-${id}-msg`} role="alert">
-          <AlertCircle size={15} aria-hidden="true" /> <span>{message}</span>
+          <AlertCircle size={15} aria-hidden="true" /> <span>{tr(message)}</span>
         </p>
       ) : summary && summary.ok ? (
-        <div className="meta-row" aria-label="Server summary">
-          <Check size={15} className="meta-ok" aria-label="Valid" />
+        <div className="meta-row" aria-label={t("summaryAria")}>
+          <Check size={15} className="meta-ok" aria-label={t("valid")} />
           {summary.host && <span className="chip chip-host">{summary.host}{summary.port ? `:${summary.port}` : ""}</span>}
           {summary.network && <span className="chip">{summary.network}</span>}
           {summary.security && summary.security !== "none" && <span className="chip">{summary.security}</span>}
