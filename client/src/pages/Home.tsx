@@ -117,9 +117,21 @@ function makeOutbound(raw: string, fallbackTag: string) {
         candidate = parsed;
       }
       if (!candidate) throw new Error("err.noOutbound");
-      // Strip obsolete allowInsecure to ensure compatibility with modern Xray-core
-      if (candidate.streamSettings?.tlsSettings && "allowInsecure" in candidate.streamSettings.tlsSettings) {
-        delete candidate.streamSettings.tlsSettings.allowInsecure;
+      // Strip obsolete proxySettings and allowInsecure for modern Xray-core compatibility
+      delete candidate.proxySettings;
+      if (candidate.streamSettings) {
+        if (candidate.streamSettings.tlsSettings && "allowInsecure" in candidate.streamSettings.tlsSettings) {
+          delete candidate.streamSettings.tlsSettings.allowInsecure;
+        }
+        if (candidate.streamSettings.realitySettings && "allowInsecure" in candidate.streamSettings.realitySettings) {
+          delete candidate.streamSettings.realitySettings.allowInsecure;
+        }
+        if ("allowInsecure" in candidate.streamSettings) {
+          delete candidate.streamSettings.allowInsecure;
+        }
+        if (candidate.streamSettings.sockopt && "dialerProxy" in candidate.streamSettings.sockopt) {
+          delete candidate.streamSettings.sockopt.dialerProxy;
+        }
       }
       return { ...candidate, tag: candidate.tag || fallbackTag };
     } catch (e: any) {
@@ -231,7 +243,19 @@ function buildConfig(hops: Hop[], settings: Settings) {
   const parsed = hops.map((hop, index) => makeOutbound(hop.value, `hop-${index + 1}`));
   const seen = new Set<string>();
   parsed.forEach((item, index) => { if (seen.has(item.tag)) item.tag = `${item.tag}-${index + 1}`; seen.add(item.tag); });
-  const chained = parsed.map((item, index) => index === 0 ? item : { ...item, proxySettings: { tag: parsed[index - 1].tag } });
+  const chained = parsed.map((item, index) => {
+    if (index === 0) return item;
+    const prevTag = parsed[index - 1].tag;
+    const streamSettings = item.streamSettings ? { ...item.streamSettings } : {};
+    const sockopt = { ...(streamSettings.sockopt || {}), dialerProxy: prevTag };
+    return {
+      ...item,
+      streamSettings: {
+        ...streamSettings,
+        sockopt,
+      },
+    };
+  });
   return {
     log: { loglevel: settings.logLevel },
     inbounds: [
@@ -239,7 +263,7 @@ function buildConfig(hops: Hop[], settings: Settings) {
       { tag: "http-in", port: Number(settings.httpPort), listen: "127.0.0.1", protocol: "http", settings: {} },
     ],
     outbounds: [
-      { ...chained[chained.length - 1], proxySettings: { tag: chained.length > 1 ? chained[chained.length - 2].tag : undefined } },
+      chained[chained.length - 1],
       ...chained.slice(0, -1).reverse(),
       { tag: "direct", protocol: "freedom", settings: {} },
       { tag: "block", protocol: "blackhole", settings: { response: { type: "none" } } }
