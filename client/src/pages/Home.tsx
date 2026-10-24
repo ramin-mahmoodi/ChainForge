@@ -62,7 +62,7 @@ function buildStreamSettings(networkRaw: string, securityRaw: string, p: Record<
   if (network === "ws") {
     stream.wsSettings = {
       path: p.path || "/",
-      headers: p.host ? { Host: p.host } : undefined
+      ...(p.host ? { host: p.host } : {})
     };
   } else if (network === "grpc") {
     stream.grpcSettings = {
@@ -74,6 +74,11 @@ function buildStreamSettings(networkRaw: string, securityRaw: string, p: Record<
       host: p.host || sni || "",
       path: p.path || "/",
       mode: p.mode || "auto"
+    };
+  } else if (network === "httpupgrade") {
+    stream.httpupgradeSettings = {
+      host: p.host || sni || "",
+      path: p.path || "/"
     };
   } else if (network === "http" || network === "h2") {
     stream.httpSettings = {
@@ -132,6 +137,44 @@ function makeOutbound(raw: string, fallbackTag: string) {
         if (candidate.streamSettings.sockopt && "dialerProxy" in candidate.streamSettings.sockopt) {
           delete candidate.streamSettings.sockopt.dialerProxy;
         }
+        // Upgrade legacy splithttp to xhttp
+        if (candidate.streamSettings.network === "splithttp") {
+          candidate.streamSettings.network = "xhttp";
+          if (candidate.streamSettings.splithttpSettings && !candidate.streamSettings.xhttpSettings) {
+            candidate.streamSettings.xhttpSettings = candidate.streamSettings.splithttpSettings;
+            delete candidate.streamSettings.splithttpSettings;
+          }
+        }
+        // Migrate legacy wsSettings headers.Host to modern independent host
+        if (candidate.streamSettings.wsSettings) {
+          if (candidate.streamSettings.wsSettings.headers?.Host && !candidate.streamSettings.wsSettings.host) {
+            candidate.streamSettings.wsSettings.host = candidate.streamSettings.wsSettings.headers.Host;
+            delete candidate.streamSettings.wsSettings.headers.Host;
+            if (Object.keys(candidate.streamSettings.wsSettings.headers).length === 0) {
+              delete candidate.streamSettings.wsSettings.headers;
+            }
+          }
+        }
+      }
+      // Sanitize VLESS flow (remove legacy splice/direct/none or flow on non-TCP)
+      if (candidate.protocol === "vless" && Array.isArray(candidate.settings?.vnext)) {
+        const net = candidate.streamSettings?.network || "tcp";
+        const sec = candidate.streamSettings?.security || "none";
+        const isTcpTls = net === "tcp" && (sec === "tls" || sec === "reality");
+        candidate.settings.vnext.forEach((vn: any) => {
+          if (Array.isArray(vn.users)) {
+            vn.users.forEach((u: any) => {
+              if (u.flow) {
+                const fl = String(u.flow).toLowerCase().trim();
+                if (isTcpTls && fl.includes("vision")) {
+                  u.flow = "xtls-rprx-vision";
+                } else {
+                  delete u.flow;
+                }
+              }
+            });
+          }
+        });
       }
       return { ...candidate, tag: candidate.tag || fallbackTag };
     } catch (e: any) {
@@ -171,6 +214,10 @@ function makeOutbound(raw: string, fallbackTag: string) {
 
     if (uri.protocol === "vless:") {
       const streamSettings = buildStreamSettings(p.type || p.network, p.security, p, uri.hostname);
+      const rawFlow = (p.flow || "").toLowerCase().trim();
+      const isTcp = streamSettings.network === "tcp";
+      const isTlsOrReality = streamSettings.security === "tls" || streamSettings.security === "reality";
+      const flow = isTcp && isTlsOrReality && rawFlow.includes("vision") ? "xtls-rprx-vision" : undefined;
       return { 
         tag, 
         protocol: "vless", 
@@ -178,7 +225,7 @@ function makeOutbound(raw: string, fallbackTag: string) {
           vnext: [{ 
             address: uri.hostname, 
             port: Number(uri.port || 443), 
-            users: [{ id: uri.username, encryption: "none", ...(p.flow ? { flow: p.flow } : {}) }] 
+            users: [{ id: uri.username, encryption: "none", ...(flow ? { flow } : {}) }] 
           }] 
         }, 
         streamSettings
@@ -259,8 +306,22 @@ function buildConfig(hops: Hop[], settings: Settings) {
   return {
     log: { loglevel: settings.logLevel },
     inbounds: [
-      { tag: "socks-in", port: Number(settings.socksPort), listen: "127.0.0.1", protocol: "socks", settings: { auth: "noauth", udp: true } },
-      { tag: "http-in", port: Number(settings.httpPort), listen: "127.0.0.1", protocol: "http", settings: {} },
+      {
+        tag: "socks-in",
+        port: Number(settings.socksPort),
+        listen: "127.0.0.1",
+        protocol: "socks",
+        settings: { auth: "noauth", udp: true },
+        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
+      },
+      {
+        tag: "http-in",
+        port: Number(settings.httpPort),
+        listen: "127.0.0.1",
+        protocol: "http",
+        settings: {},
+        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
+      },
     ],
     outbounds: [
       chained[chained.length - 1],
